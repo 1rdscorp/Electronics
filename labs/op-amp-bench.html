@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Op-Amp Bench Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: one bench instrument — schematic and scope side by side, knobs underneath, experiment checklist on the right. Single dark "lab bench" theme by choice. */
+:root{
+  --bg:#0e151d;
+  --panel:#141e29;
+  --panel-2:#1a2633;
+  --line:#2a3a4c;
+  --ink:#dfe8f0;
+  --muted:#8597a9;
+  --vin:#4fd3ea;
+  --vout:#ffb648;
+  --vneg:#b49dff;
+  --pos:#ff6a5c;
+  --neg:#4d9cff;
+  --ok:#5fd68f;
+  --font-display:"Chakra Petch", "Rajdhani", system-ui, sans-serif;
+  --font-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.45}
+body{padding:18px clamp(16px,3vw,32px) 40px}
+h1,h2,h3{font-family:var(--font-display);font-weight:600;margin:0;text-wrap:balance;letter-spacing:.02em}
+h1{font-size:26px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:600}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--vout);outline-offset:2px}
+
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:14px}
+.top .sub{color:var(--muted);font-size:14px;margin-top:2px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px}
+.tab{background:transparent;border:0;border-radius:7px;padding:8px 14px;cursor:pointer;font-family:var(--font-display);font-weight:600;font-size:14px;color:var(--muted);letter-spacing:.03em}
+.tab:hover{color:var(--ink);background:var(--panel-2)}
+.tab[aria-selected="true"]{background:var(--vout);color:#1b1206}
+
+.bench{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start}
+.main{display:grid;gap:14px;min-width:0;align-content:start}
+.row2{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+
+.law{font-family:var(--font-mono);font-size:14px;color:var(--ink);background:var(--panel-2);border-radius:6px;padding:3px 9px}
+#schem{width:100%;height:auto;display:block}
+#schem .w{fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+#schem .flow{fill:none;stroke:#fff;stroke-width:3;stroke-dasharray:1.5 13;stroke-linecap:round;opacity:.85}
+#schem .res-bg{fill:var(--panel)}
+#schem .res{fill:none;stroke:var(--ink);stroke-width:2.2;stroke-linejoin:round}
+#schem .comp{fill:none;stroke:var(--ink);stroke-width:2.2}
+#schem .lbl{fill:var(--muted);font-family:var(--font-mono);font-size:12px}
+#schem .lbl-strong{fill:var(--ink);font-family:var(--font-display);font-size:13px;font-weight:600}
+#schem .pin{fill:var(--ink);font-family:var(--font-mono);font-size:18px;font-weight:600}
+#schem .nv{font-family:var(--font-mono);font-size:12.5px;font-weight:600}
+#schem .tag{rx:4}
+#opbody{fill:var(--panel-2);stroke:var(--ink);stroke-width:2.4;transition:fill .15s}
+#opbody.sat{fill:#3a2410;stroke:var(--vout)}
+
+.diff{margin-top:10px;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;align-items:center;background:var(--panel-2);border-radius:10px;padding:10px 12px}
+.diff .k{color:var(--muted);font-size:13px}
+.diff .v{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:15px;text-align:right}
+.diff .big{font-size:20px;color:var(--vneg);font-weight:600}
+.eq{grid-column:1/-1;font-family:var(--font-mono);font-size:13px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px;line-height:1.6}
+.eq b{color:var(--ink);font-weight:600}
+
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);align-items:center}
+.sw{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+.legend label{cursor:pointer;display:flex;align-items:center;gap:5px}
+#scope{width:100%;height:280px;display:block;border-radius:8px;background:#0a1016}
+.readouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:10px}
+.ro{background:var(--panel-2);border-radius:8px;padding:7px 10px;border-left:3px solid var(--line)}
+.ro .k{font-size:12px;color:var(--muted)}
+.ro .v{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:16px;font-weight:600}
+.pill{display:inline-block;font-family:var(--font-display);font-weight:700;font-size:12px;letter-spacing:.08em;padding:3px 9px;border-radius:999px;background:#163524;color:var(--ok);border:1px solid #23573a}
+.pill.sat{background:#3d2310;color:var(--vout);border-color:#6b3f17}
+
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.group{display:grid;gap:10px;align-content:start}
+.ctl{display:grid;gap:3px}
+.ctl .lab{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+.ctl .lab output{font-family:var(--font-mono);color:var(--ink);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--vout);height:22px;cursor:pointer}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+.seg button{flex:1;background:var(--panel-2);border:1px solid var(--line);border-radius:7px;padding:6px 8px;cursor:pointer;font-size:13px;color:var(--muted);min-width:52px}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"]{border-color:var(--vin);color:var(--ink);background:#14303a}
+.hidden{display:none!important}
+
+.side{display:grid;gap:14px;align-content:start}
+.exp{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.exp li button{width:100%;text-align:left;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:9px 10px 9px 38px;cursor:pointer;position:relative;display:grid;gap:2px}
+.exp li button:hover{border-color:var(--muted)}
+.exp li button::before{content:"";position:absolute;left:11px;top:11px;width:16px;height:16px;border-radius:50%;border:2px solid var(--line)}
+.exp li.done button{border-color:#23573a}
+.exp li.done button::before{background:var(--ok);border-color:var(--ok);box-shadow:inset 0 0 0 3px var(--panel-2)}
+.exp .t{font-weight:600;font-size:14px}
+.exp .h{font-size:12.5px;color:var(--muted)}
+.exp .m{font-family:var(--font-display);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--vin)}
+.progress{font-family:var(--font-mono);font-size:13px;color:var(--muted)}
+.rules{display:grid;gap:8px;font-size:13.5px}
+.rules div{display:grid;grid-template-columns:22px 1fr;gap:6px}
+.rules b{font-family:var(--font-display);color:var(--vout)}
+.ghost{background:transparent;border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-size:12px;color:var(--muted);cursor:pointer}
+.ghost:hover{color:var(--ink)}
+
+@media (max-width:1100px){.bench{grid-template-columns:1fr}.side{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}}
+@media (max-width:820px){.row2{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){#schem .flow{display:none}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div>
+    <h1>Op-Amp Bench Lab</h1>
+    <div class="sub">Rewire the circuit, turn the knobs, watch the scope.</div>
+  </div>
+  <div class="tabs" role="tablist" aria-label="Circuit">
+    <button class="tab" role="tab" data-mode="open" id="tab-open">Open loop</button>
+    <button class="tab" role="tab" data-mode="inv" id="tab-inv">Inverting</button>
+    <button class="tab" role="tab" data-mode="noninv" id="tab-noninv">Non-inverting</button>
+    <button class="tab" role="tab" data-mode="follow" id="tab-follow">Follower</button>
+  </div>
+</header>
+
+<div class="bench">
+  <div class="main">
+    <div class="row2">
+      <section class="card" aria-label="Schematic">
+        <div class="card-head">
+          <h2>Circuit</h2>
+          <span class="law" id="law">Vout = −(Rf/Rin)·Vin</span>
+        </div>
+        <svg id="schem" viewBox="0 0 470 280" role="img" aria-label="Live op-amp schematic"></svg>
+        <div class="diff">
+          <span class="k">V+ − V− (what the op-amp actually sees)</span>
+          <span class="v big" id="dv">0</span>
+          <div class="eq" id="eq"></div>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Oscilloscope">
+        <div class="card-head">
+          <h2>Scope</h2>
+          <div class="legend">
+            <span><i class="sw" style="background:var(--vin)"></i>Vin</span>
+            <span><i class="sw" style="background:var(--vout)"></i>Vout</span>
+            <label><input type="checkbox" id="showVn" checked> <i class="sw" style="background:var(--vneg)"></i>V−</label>
+            <span><i class="sw" style="background:var(--pos);opacity:.6"></i>Output limit</span>
+          </div>
+        </div>
+        <canvas id="scope" aria-label="Oscilloscope traces of input and output"></canvas>
+        <div class="readouts">
+          <div class="ro" style="border-left-color:var(--vin)"><div class="k">Vin</div><div class="v" id="r-vin">–</div></div>
+          <div class="ro" style="border-left-color:var(--vout)"><div class="k">Vout</div><div class="v" id="r-vout">–</div></div>
+          <div class="ro" id="ro-gain"><div class="k">Gain measured / ideal</div><div class="v" id="r-gain">–</div></div>
+          <div class="ro" id="ro-i"><div class="k">I through R1 / Rf</div><div class="v" id="r-i">–</div></div>
+          <div class="ro"><div class="k">State</div><div class="v"><span class="pill" id="r-state">LINEAR</span></div></div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" aria-label="Controls">
+      <div class="controls">
+        <div class="group">
+          <h2>Signal generator</h2>
+          <div class="seg" id="wave" role="group" aria-label="Waveform">
+            <button data-wave="dc">DC</button>
+            <button data-wave="sine">Sine</button>
+            <button data-wave="square">Square</button>
+            <button data-wave="tri">Triangle</button>
+          </div>
+          <div class="ctl"><div class="lab"><label for="amp" id="amp-lab">Amplitude</label><output id="amp-o"></output></div>
+            <input type="range" id="amp" min="-5" max="5" step="0.01" value="1"></div>
+          <div class="ctl" id="ctl-freq"><div class="lab"><label for="freq">Frequency</label><output id="freq-o"></output></div>
+            <input type="range" id="freq" min="0.1" max="4" step="0.05" value="0.5"></div>
+          <div class="ctl" id="ctl-vref"><div class="lab"><label for="vref">Reference on V− (fine)</label><output id="vref-o"></output></div>
+            <input type="range" id="vref" min="-0.5" max="0.5" step="0.001" value="0"></div>
+        </div>
+
+        <div class="group" id="grp-res">
+          <h2>Resistors</h2>
+          <div class="ctl"><div class="lab"><label for="r1" id="r1-lab">Rin</label><output id="r1-o"></output></div>
+            <input type="range" id="r1" min="0" max="1000" step="1"></div>
+          <div class="ctl"><div class="lab"><label for="rf">Rf (feedback)</label><output id="rf-o"></output></div>
+            <input type="range" id="rf" min="0" max="1000" step="1"></div>
+        </div>
+
+        <div class="group">
+          <h2>The op-amp itself</h2>
+          <div class="ctl"><div class="lab"><label for="ga">Open-loop gain A</label><output id="ga-o"></output></div>
+            <input type="range" id="ga" min="0" max="1000" step="1"></div>
+          <div class="ctl"><div class="lab"><label for="gbw">Speed (gain-bandwidth)</label><output id="gbw-o"></output></div>
+            <input type="range" id="gbw" min="0" max="1000" step="1"></div>
+          <div class="ctl"><div class="lab"><label for="vs">Supply rails</label><output id="vs-o"></output></div>
+            <input type="range" id="vs" min="5" max="15" step="1" value="12"></div>
+        </div>
+
+        <div class="group">
+          <h2>Time</h2>
+          <div class="seg" id="speed" role="group" aria-label="Playback speed">
+            <button data-speed="0.25">¼×</button>
+            <button data-speed="0.5">½×</button>
+            <button data-speed="1">1×</button>
+          </div>
+          <div class="seg"><button id="pause" aria-pressed="false">Pause</button><button id="reset">Reset op-amp</button></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <aside class="side">
+    <section class="card">
+      <div class="card-head"><h2>Experiments</h2><span class="progress" id="prog">0 / 8</span></div>
+      <ul class="exp" id="exp"></ul>
+      <div style="margin-top:10px;text-align:right"><button class="ghost" id="clear">Clear checkmarks</button></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>What you should discover</h2></div>
+      <div class="rules">
+        <div><b>1</b><span>The op-amp multiplies V+ − V− by a huge number A.</span></div>
+        <div><b>2</b><span>Alone, that makes it a switch: the output slams into a rail.</span></div>
+        <div><b>3</b><span>Feed the output back to V− and it settles where V− ≈ V+.</span></div>
+        <div><b>4</b><span>No current enters the inputs, so the same current flows through R1 and Rf. The resistors set the gain, not A.</span></div>
+      </div>
+    </section>
+  </aside>
+</div>
+
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const MINUS = "−";
+
+// ---------- state ----------
+const S = {
+  mode: "inv", wave: "sine", amp: 1, freq: 0.5, vref: 0,
+  r1: 10000, rf: 47000, A: 1e5, gbw: 1e7, vs: 12,
+  speed: 1, paused: false, showVn: true
+};
+const sim = { t: 0, vout: 0, vp: 0, vn: 0, vin: 0 };
+const N = 4000, DT = 0.001; // 4 s of history at 1 ms
+const H = { vin: new Float32Array(N), vout: new Float32Array(N), vn: new Float32Array(N), idx: 0, count: 0 };
+
+// ---------- helpers ----------
+const sig2 = v => { const p = Math.pow(10, Math.floor(Math.log10(v)) - 1); return Math.round(v / p) * p; };
+const logMap = (s, lo, hi) => sig2(Math.pow(10, lo + (hi - lo) * s / 1000));
+const logInv = (v, lo, hi) => Math.round((Math.log10(v) - lo) / (hi - lo) * 1000);
+const sgn = v => v < 0 ? MINUS : "";
+function fmtV(v, d = 2) {
+  const a = Math.abs(v);
+  if (a >= 1) return sgn(v) + a.toFixed(d) + " V";
+  if (a >= 1e-3) return sgn(v) + (a * 1e3).toFixed(d === 2 ? 1 : d) + " mV";
+  if (a >= 1e-6) return sgn(v) + (a * 1e6).toFixed(1) + " µV";
+  if (a >= 1e-9) return sgn(v) + (a * 1e9).toFixed(0) + " nV";
+  return "0 V";
+}
+function fmtBig(v) {
+  const a = Math.abs(v);
+  if (a >= 1e6) return sgn(v) + (a / 1e6).toFixed(2) + " MV";
+  if (a >= 1e3) return sgn(v) + (a / 1e3).toFixed(1) + " kV";
+  return fmtV(v);
+}
+const fmtR = r => r >= 1000 ? (+(r / 1000).toPrecision(2)) + " kΩ" : r + " Ω";
+const fmtA = a => Math.round(a).toLocaleString("en-US").replace(/,/g, " ");
+const fmtI = i => { const a = Math.abs(i); return a >= 1e-3 ? sgn(i) + (a * 1e3).toFixed(2) + " mA" : sgn(i) + (a * 1e6).toFixed(1) + " µA"; };
+const vsat = () => S.vs - 1;
+
+function signal(t) {
+  const ph = (t * S.freq) % 1;
+  switch (S.wave) {
+    case "dc": return S.amp;
+    case "sine": return S.amp * Math.sin(2 * Math.PI * ph);
+    case "square": return ph < 0.5 ? S.amp : -S.amp;
+    case "tri": return S.amp * (ph < 0.25 ? 4 * ph : ph < 0.75 ? 2 - 4 * ph : 4 * ph - 4);
+  }
+  return 0;
+}
+
+// Express V+ = p0 and V− = n0 + b·Vout for the current wiring.
+function topology(vin) {
+  const { r1, rf } = S;
+  switch (S.mode) {
+    case "open":   return { p0: vin, n0: S.vref, b: 0 };
+    case "inv":    return { p0: 0, n0: vin * rf / (r1 + rf), b: r1 / (r1 + rf) };
+    case "noninv": return { p0: vin, n0: 0, b: r1 / (r1 + rf) };
+    case "follow": return { p0: vin, n0: 0, b: 1 };
+  }
+}
+function idealGain() {
+  switch (S.mode) {
+    case "open": return S.A;
+    case "inv": return -S.rf / S.r1;
+    case "noninv": return 1 + S.rf / S.r1;
+    case "follow": return 1;
+  }
+}
+
+// Single-pole op-amp: dVout/dt = wp·(A·(V+ − V−) − Vout), wp = GBW/A. Implicit Euler, then clip to the output limit.
+function step(dt) {
+  const vin = signal(sim.t);
+  const { p0, n0, b } = topology(vin);
+  const k = dt * S.gbw / S.A;
+  let v = (sim.vout + k * S.A * (p0 - n0)) / (1 + k + k * S.A * b);
+  const lim = vsat();
+  v = Math.max(-lim, Math.min(lim, v));
+  sim.vout = v; sim.vin = vin; sim.vp = p0; sim.vn = n0 + b * v;
+  sim.t += dt;
+  H.vin[H.idx] = vin; H.vout[H.idx] = v; H.vn[H.idx] = sim.vn;
+  H.idx = (H.idx + 1) % N; H.count = Math.min(N, H.count + 1);
+}
+
+// ---------- schematic ----------
+const svg = $("schem");
+const W = (net, d) => `<path class="w" data-net="${net}" d="${d}"/>`;
+const F = (id, d) => `<path class="flow" data-flow="${id}" d="${d}"/>`;
+function R(x1, x2, y, name, id) {
+  const n = 6, step = (x2 - x1 - 10) / n;
+  let d = `M${x1} ${y} h5`;
+  for (let i = 0; i < n; i++) d += ` l${step / 2} ${i % 2 ? 8 : -8} l${step / 2} ${i % 2 ? -8 : 8}`;
+  d += ` h5`;
+  return `<rect class="res-bg" x="${x1}" y="${y - 10}" width="${x2 - x1}" height="20"/>
+    <path class="res" d="${d}"/>
+    <text class="lbl-strong" id="${id}" data-name="${name}" x="${(x1 + x2) / 2}" y="${y - 15}" text-anchor="middle">${name}</text>`;
+}
+const G = (x, y) => `<path class="comp" d="M${x} ${y} v8 M${x - 11} ${y + 8} h22 M${x - 7} ${y + 13} h14 M${x - 3} ${y + 18} h6"/>`;
+function SRC(x, y, kind, label) {
+  const glyph = kind === "ac"
+    ? `<path class="comp" d="M${x - 10} ${y} q5 -10 10 0 t10 0" />`
+    : `<text class="pin" x="${x}" y="${y - 3}" text-anchor="middle" font-size="13">+</text><text class="pin" x="${x}" y="${y + 13}" text-anchor="middle" font-size="13">${MINUS}</text>`;
+  return `<circle class="comp" cx="${x}" cy="${y}" r="20" style="fill:var(--panel)"/>${glyph}
+    <text class="lbl-strong" x="${x - 28}" y="${y + 4}" text-anchor="end">${label}</text>`;
+}
+const OPAMP = `<path id="opbody" d="M240 95 L240 205 L330 150 Z"/>
+  <text class="pin" x="248" y="131">${MINUS}</text><text class="pin" x="248" y="181">+</text>
+  <path class="w" data-net="rp" d="M285 122 V100"/><path class="w" data-net="rn" d="M285 178 V200"/>
+  <text class="lbl" id="lbl-rp" x="293" y="106"></text><text class="lbl" id="lbl-rn" x="293" y="204"></text>`;
+const OUTT = `<circle cx="440" cy="150" r="5" style="fill:var(--panel);stroke:var(--ink);stroke-width:2"/>`;
+const NV = (key, x, y, anchor = "start") => `<text class="nv" data-nv="${key}" x="${x}" y="${y}" text-anchor="${anchor}"></text>`;
+
+const LAYOUTS = {
+  open: () => `
+    ${W("in", "M120 212 V175 H240")}${W("n", "M240 125 H60 V142")}${W("out", "M330 150 H435")}
+    ${SRC(120, 232, "ac", "Vin")}${G(120, 252)}${SRC(60, 162, "dc", "Vref")}${G(60, 182)}
+    ${OPAMP}${OUTT}
+    ${NV("vp", 132, 194)}${NV("vn", 70, 117)}${NV("vout", 440, 136, "end")}
+    <text class="lbl" x="350" y="235">no feedback path:</text><text class="lbl" x="350" y="250">nothing tells the output to stop</text>`,
+  inv: () => `
+    ${W("in", "M60 160 V125 H100")}${W("n", "M170 125 H240 M200 125 V55 H230")}${W("out", "M300 55 H380 V150 M330 150 H435")}${W("gnd", "M240 175 H210 V190")}
+    ${F("r1", "M60 160 V125 H200")}${F("rf", "M200 125 V55 H380 V150")}
+    ${R(100, 170, 125, "Rin", "lbl-r1")}${R(230, 300, 55, "Rf", "lbl-rf")}
+    ${SRC(60, 180, "ac", "")}<text class="lbl-strong" x="60" y="240" text-anchor="middle">Vin</text>${G(60, 200)}${G(210, 190)}
+    ${OPAMP}${OUTT}<circle cx="200" cy="125" r="3.5" fill="var(--ink)"/><circle cx="380" cy="150" r="3.5" fill="var(--ink)"/>
+    ${NV("vin", 6, 100)}${NV("vn", 110, 148)}${NV("vout", 440, 136, "end")}`,
+  noninv: () => `
+    ${W("in", "M120 195 V175 H240")}${W("n", "M240 125 H200 V55 H230 M200 125 H170")}${W("out", "M300 55 H380 V150 M330 150 H435")}${W("gnd", "M100 125 H75 V140")}
+    ${F("rf", "M380 150 V55 H200 V125 H75 V140")}
+    ${R(100, 170, 125, "Rg", "lbl-r1")}${R(230, 300, 55, "Rf", "lbl-rf")}
+    ${SRC(120, 215, "ac", "Vin")}${G(120, 235)}${G(75, 140)}
+    ${OPAMP}${OUTT}<circle cx="200" cy="125" r="3.5" fill="var(--ink)"/><circle cx="380" cy="150" r="3.5" fill="var(--ink)"/>
+    ${NV("vp", 150, 194)}${NV("vn", 110, 148)}${NV("vout", 440, 136, "end")}`,
+  follow: () => `
+    ${W("in", "M120 195 V175 H240")}${W("out", "M240 125 H200 V55 H380 V150 M330 150 H435")}
+    ${SRC(120, 215, "ac", "Vin")}${G(120, 235)}
+    ${OPAMP}${OUTT}<circle cx="380" cy="150" r="3.5" fill="var(--ink)"/>
+    ${NV("vp", 150, 194)}${NV("vn", 196, 117, "end")}${NV("vout", 440, 136, "end")}
+    <text class="lbl" x="200" y="42">output wired straight back to V−</text>`
+};
+const LAWS = {
+  open: "Vout = A·(V+ − V−), then clipped",
+  inv: "Vout = −(Rf/Rin)·Vin",
+  noninv: "Vout = (1 + Rf/Rg)·Vin",
+  follow: "Vout = Vin"
+};
+let wires = [], flows = [], nvs = [], opbody;
+const flowOff = {};
+function buildSchematic() {
+  svg.innerHTML = LAYOUTS[S.mode]();
+  wires = [...svg.querySelectorAll(".w")];
+  flows = [...svg.querySelectorAll(".flow")];
+  nvs = [...svg.querySelectorAll("[data-nv]")];
+  opbody = $("opbody");
+}
+function vColor(v) {
+  const t = Math.min(1, Math.abs(v) / Math.max(1, S.vs));
+  const base = [107, 124, 140], hot = v >= 0 ? [255, 106, 92] : [77, 156, 255];
+  const c = base.map((b, i) => Math.round(b + (hot[i] - b) * Math.pow(t, 0.6)));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+// ---------- scope ----------
+const cv = $("scope"), ctx = cv.getContext("2d");
+let cw = 0, ch = 0;
+function sizeScope() {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  cw = r.width; ch = r.height;
+  cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+new ResizeObserver(sizeScope).observe(cv);
+function drawScope() {
+  if (!cw) return;
+  const padL = 34, padR = 8, padT = 8, padB = 20;
+  const w = cw - padL - padR, h = ch - padT - padB;
+  const ymax = S.vs + 1;
+  const Y = v => padT + h / 2 - (v / ymax) * (h / 2);
+  ctx.clearRect(0, 0, cw, ch);
+  ctx.font = "11px 'IBM Plex Mono', monospace";
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  const stepV = S.vs > 9 ? 4 : 2;
+  for (let v = -Math.floor(ymax / stepV) * stepV; v <= ymax; v += stepV) {
+    ctx.strokeStyle = v === 0 ? "#2f4256" : "#1a2632"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, Y(v)); ctx.lineTo(padL + w, Y(v)); ctx.stroke();
+    ctx.fillStyle = "#6f8396"; ctx.fillText((v < 0 ? MINUS : "") + Math.abs(v), padL - 5, Y(v));
+  }
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (let s = 0; s <= 4; s += 0.5) {
+    const x = padL + w - (s / 4) * w;
+    ctx.strokeStyle = "#1a2632"; ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + h); ctx.stroke();
+    if (s % 1 === 0) { ctx.fillStyle = "#6f8396"; ctx.fillText(s === 0 ? "now" : (MINUS + s + " s"), x, padT + h + 4); }
+  }
+  // output limits
+  ctx.setLineDash([6, 5]); ctx.strokeStyle = "rgba(255,106,92,.55)"; ctx.lineWidth = 1.2;
+  [vsat(), -vsat()].forEach(v => { ctx.beginPath(); ctx.moveTo(padL, Y(v)); ctx.lineTo(padL + w, Y(v)); ctx.stroke(); });
+  ctx.setLineDash([]);
+  const trace = (arr, color, width, dash) => {
+    if (H.count < 2) return;
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash || []);
+    ctx.beginPath();
+    const start = (H.idx - H.count + N) % N;
+    for (let i = 0; i < H.count; i++) {
+      const j = (start + i) % N;
+      const x = padL + w - ((H.count - 1 - i) / (N - 1)) * w;
+      const y = Y(Math.max(-ymax, Math.min(ymax, arr[j])));
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+  };
+  if (S.showVn) trace(H.vn, "#b49dff", 1.6, [4, 3]);
+  trace(H.vin, "#4fd3ea", 2);
+  trace(H.vout, "#ffb648", 2.4);
+  // endpoint dots
+  const last = (H.idx - 1 + N) % N;
+  [[H.vin, "#4fd3ea"], [H.vout, "#ffb648"]].forEach(([a, c]) => {
+    ctx.fillStyle = c; ctx.beginPath(); ctx.arc(padL + w, Y(Math.max(-ymax, Math.min(ymax, a[last]))), 3.5, 0, 7); ctx.fill();
+  });
+}
+
+// ---------- measurement ----------
+function measuredGain() {
+  if (S.wave === "dc") return Math.abs(sim.vin) > 0.01 ? sim.vout / sim.vin : NaN;
+  const n = Math.min(H.count, Math.round(1 / S.freq / DT));
+  if (n < 50) return NaN;
+  let iMin = Infinity, iMax = -Infinity, oMin = Infinity, oMax = -Infinity, corr = 0, mi = 0, mo = 0;
+  for (let k = 1; k <= n; k++) { const j = (H.idx - k + N) % N; mi += H.vin[j]; mo += H.vout[j]; }
+  mi /= n; mo /= n;
+  for (let k = 1; k <= n; k++) {
+    const j = (H.idx - k + N) % N, a = H.vin[j], b = H.vout[j];
+    iMin = Math.min(iMin, a); iMax = Math.max(iMax, a); oMin = Math.min(oMin, b); oMax = Math.max(oMax, b);
+    corr += (a - mi) * (b - mo);
+  }
+  if (iMax - iMin < 0.02) return NaN;
+  return (corr < 0 ? -1 : 1) * (oMax - oMin) / (iMax - iMin);
+}
+function recentlySaturated(windowS) {
+  const n = Math.min(H.count, Math.round(windowS / DT)), lim = vsat() - 0.02;
+  for (let k = 1; k <= n; k++) if (Math.abs(H.vout[(H.idx - k + N) % N]) >= lim) return true;
+  return false;
+}
+
+// ---------- experiments ----------
+const EXPS = [
+  { id: "comparator", mode: "open", t: "Make it a switch", h: "Open loop: a 1 V sine on V+. Watch the output slam rail to rail." },
+  { id: "balance", mode: "open", t: "Try to park the output at 0 V", h: "DC input, no feedback. Nudge Vref. Nearly impossible until you lower A." },
+  { id: "virtual", mode: "inv", t: "Spot the virtual ground", h: "Inverting, Vin ≥ 1 V, not clipping: V− hardly moves from 0." },
+  { id: "gain10", mode: "inv", t: "Build a ×(−10) amplifier", h: "Pick Rin and Rf so the gain is −10." },
+  { id: "clip", mode: "inv", t: "Clip the output", h: "Push gain × amplitude past the supply rails." },
+  { id: "gain3", mode: "noninv", t: "Build a ×3 amplifier", h: "Non-inverting: choose Rf and Rg for a gain of +3." },
+  { id: "lowA", mode: "noninv", t: "Break the gain formula", h: "Set a gain of 10 or more, then drop A below 1000. Measured gain falls short." },
+  { id: "lag", mode: "follow", t: "Make the op-amp too slow", h: "Follower: drop the speed to 10/s or less. The output lags the input." }
+];
+let done = {};
+try { done = JSON.parse(localStorage.getItem("opamp-lab-done") || "{}"); } catch (e) { done = {}; }
+const hold = {};
+function renderExps() {
+  $("exp").innerHTML = EXPS.map(e => `<li class="${done[e.id] ? "done" : ""}" data-id="${e.id}">
+    <button type="button" data-goto="${e.mode}"><span class="m">${({ open: "Open loop", inv: "Inverting", noninv: "Non-inverting", follow: "Follower" })[e.mode]}</span><span class="t">${e.t}</span><span class="h">${e.h}</span></button></li>`).join("");
+  $("prog").textContent = `${Object.keys(done).filter(k => done[k]).length} / ${EXPS.length}`;
+}
+function mark(id) {
+  if (done[id]) return;
+  done[id] = true;
+  try { localStorage.setItem("opamp-lab-done", JSON.stringify(done)); } catch (e) {}
+  renderExps();
+}
+function held(id, cond, secs, dt) { hold[id] = cond ? (hold[id] || 0) + dt : 0; return hold[id] >= secs; }
+function checkExps(dt) {
+  const lim = vsat(), m = S.mode, sat = Math.abs(sim.vout) >= lim - 0.02;
+  if (m === "open") {
+    if (sim.vout >= lim - 0.02) hold.posRail = true;
+    if (sim.vout <= -lim + 0.02) hold.negRail = true;
+    if (hold.posRail && hold.negRail) mark("comparator");
+    if (held("balance", S.wave === "dc" && Math.abs(sim.vout) < lim - 0.5 && Math.abs(sim.vout) < 2, 1, dt)) mark("balance");
+  } else { hold.posRail = hold.negRail = false; hold.balance = 0; }
+  if (m === "inv") {
+    if (held("virtual", Math.abs(S.amp) >= 1 && S.wave !== "dc" && !recentlySaturated(2) && S.A >= 1e4, 2, dt)) mark("virtual");
+    if (Math.abs(S.rf / S.r1 - 10) < 0.25) mark("gain10");
+    if (sat) mark("clip");
+  } else hold.virtual = 0;
+  if (m === "noninv" && Math.abs(1 + S.rf / S.r1 - 3) < 0.08) mark("gain3");
+  if ((m === "noninv" || m === "inv") && Math.abs(idealGain()) >= 10 && S.A < 1000) {
+    const g = measuredGain(), gi = idealGain();
+    if (held("lowA", isFinite(g) && !recentlySaturated(1.5) && Math.abs(g - gi) / Math.abs(gi) > 0.1, 1, dt)) mark("lowA");
+  } else hold.lowA = 0;
+  if (held("lag", m === "follow" && S.gbw <= 10 && S.wave !== "dc", 1.5, dt)) mark("lag");
+}
+
+// ---------- UI ----------
+function syncUI() {
+  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.mode === S.mode));
+  document.querySelectorAll("#wave button").forEach(b => b.setAttribute("aria-pressed", b.dataset.wave === S.wave));
+  document.querySelectorAll("#speed button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.speed === S.speed));
+  $("pause").setAttribute("aria-pressed", S.paused); $("pause").textContent = S.paused ? "Resume" : "Pause";
+  $("law").textContent = LAWS[S.mode];
+  $("ctl-vref").classList.toggle("hidden", S.mode !== "open");
+  $("ctl-freq").classList.toggle("hidden", S.wave === "dc");
+  $("grp-res").classList.toggle("hidden", S.mode === "open" || S.mode === "follow");
+  $("ro-i").classList.toggle("hidden", S.mode === "open" || S.mode === "follow");
+  $("r1-lab").textContent = S.mode === "noninv" ? "Rg (to ground)" : "Rin";
+  $("amp-lab").textContent = S.wave === "dc" ? "DC level" : "Amplitude";
+  $("amp-o").textContent = fmtV(S.amp);
+  $("freq-o").textContent = S.freq.toFixed(2) + " Hz";
+  $("vref-o").textContent = (S.vref < 0 ? MINUS : "") + Math.abs(S.vref * 1000).toFixed(0) + " mV";
+  $("r1-o").textContent = fmtR(S.r1); $("rf-o").textContent = fmtR(S.rf);
+  $("ga-o").textContent = fmtA(S.A);
+  $("gbw-o").textContent = fmtA(S.gbw) + " /s";
+  $("vs-o").textContent = "±" + S.vs + " V";
+  $("r1").value = logInv(S.r1, 3, 5); $("rf").value = logInv(S.rf, 3, 5);
+  $("ga").value = logInv(S.A, 1, 6); $("gbw").value = logInv(S.gbw, 0, 7);
+  $("amp").value = S.amp; $("freq").value = S.freq; $("vref").value = S.vref; $("vs").value = S.vs;
+  const l1 = $("lbl-r1"), lf = $("lbl-rf");
+  if (l1) l1.textContent = l1.dataset.name + " · " + fmtR(S.r1);
+  if (lf) lf.textContent = lf.dataset.name + " · " + fmtR(S.rf);
+  const rp = $("lbl-rp"), rn = $("lbl-rn");
+  if (rp) rp.textContent = "+" + S.vs + " V";
+  if (rn) rn.textContent = MINUS + S.vs + " V";
+}
+function setMode(m) {
+  if (m === S.mode) return;
+  S.mode = m;
+  if (m === "open" && S.wave !== "dc") { S.amp = Math.sign(S.amp || 1) * Math.min(Math.abs(S.amp), 1); }
+  buildSchematic(); syncUI();
+}
+document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+document.querySelectorAll("#wave button").forEach(b => b.addEventListener("click", () => { S.wave = b.dataset.wave; syncUI(); }));
+document.querySelectorAll("#speed button").forEach(b => b.addEventListener("click", () => { S.speed = +b.dataset.speed; syncUI(); }));
+$("pause").addEventListener("click", () => { S.paused = !S.paused; syncUI(); });
+$("reset").addEventListener("click", () => { sim.vout = 0; });
+$("showVn").addEventListener("change", e => { S.showVn = e.target.checked; });
+$("amp").addEventListener("input", e => { S.amp = +e.target.value; syncUI(); });
+$("freq").addEventListener("input", e => { S.freq = +e.target.value; syncUI(); });
+$("vref").addEventListener("input", e => { S.vref = +e.target.value; syncUI(); });
+$("vs").addEventListener("input", e => { S.vs = +e.target.value; syncUI(); });
+$("r1").addEventListener("input", e => { S.r1 = logMap(+e.target.value, 3, 5); syncUI(); });
+$("rf").addEventListener("input", e => { S.rf = logMap(+e.target.value, 3, 5); syncUI(); });
+$("ga").addEventListener("input", e => { S.A = logMap(+e.target.value, 1, 6); syncUI(); });
+$("gbw").addEventListener("input", e => { S.gbw = logMap(+e.target.value, 0, 7); syncUI(); });
+$("exp").addEventListener("click", e => { const b = e.target.closest("[data-goto]"); if (b) setMode(b.dataset.goto); });
+$("clear").addEventListener("click", () => { done = {}; try { localStorage.removeItem("opamp-lab-done"); } catch (e) {} renderExps(); });
+
+// ---------- live readouts ----------
+function updateLive(realDt) {
+  const lim = vsat(), sat = Math.abs(sim.vout) >= lim - 0.02;
+  const netV = { in: sim.vin, n: sim.vn, out: sim.vout, gnd: 0, rp: S.vs, rn: -S.vs };
+  if (S.mode === "noninv" || S.mode === "follow") netV.in = sim.vp;
+  wires.forEach(p => p.style.stroke = vColor(netV[p.dataset.net]));
+  opbody.classList.toggle("sat", sat);
+  const nvVal = { vin: sim.vin, vp: sim.vp, vn: sim.vn, vout: sim.vout };
+  const nvName = { vin: "Vin ", vp: "V+ ", vn: "V− ", vout: "Vout " };
+  nvs.forEach(t => {
+    const k = t.dataset.nv, v = nvVal[k];
+    t.textContent = nvName[k] + fmtV(v);
+    t.style.fill = k === "vout" ? "#ffb648" : k === "vn" ? "#b49dff" : "#4fd3ea";
+  });
+  // current dots
+  const i1 = S.mode === "inv" ? (sim.vin - sim.vn) / S.r1 : sim.vn / S.r1;
+  const i2 = S.mode === "inv" ? (sim.vn - sim.vout) / S.rf : (sim.vout - sim.vn) / S.rf;
+  flows.forEach(p => {
+    const id = p.dataset.flow, I = id === "r1" ? i1 : i2;
+    const sp = Math.max(-220, Math.min(220, I * 1e3 * 90));
+    flowOff[id] = ((flowOff[id] || 0) - sp * realDt * (S.paused ? 0 : S.speed)) % 1000;
+    p.style.strokeDashoffset = flowOff[id];
+    p.style.opacity = Math.abs(sp) < 2 ? 0 : 0.85;
+  });
+  // difference panel
+  const dv = sim.vp - sim.vn;
+  $("dv").textContent = fmtV(dv, 3);
+  const wouldBe = S.A * dv;
+  $("eq").innerHTML = `Vout = A × (V+ − V−)<br>= <b>${fmtA(S.A)}</b> × <b>${fmtV(dv, 3)}</b> = <b>${fmtBig(wouldBe)}</b>` +
+    (sat ? `<br>but the output can't go past the rails, so Vout = <b style="color:var(--vout)">${fmtV(sim.vout)}</b>`
+      : S.mode === "open" ? `<br>≈ Vout, but only while the gap stays this small`
+      : `<br>≈ Vout. A is huge, so the gap only needs to be tiny.`);
+  // readouts
+  $("r-vin").textContent = fmtV(sim.vin);
+  $("r-vout").textContent = fmtV(sim.vout);
+  if (S.mode === "open") $("r-gain").textContent = "A = " + fmtA(S.A);
+  else {
+    const g = measuredGain(), gi = idealGain(), f = x => (x < 0 ? MINUS : "") + Math.abs(x).toFixed(2);
+    $("r-gain").textContent = (isFinite(g) ? f(g) : "–") + " / " + f(gi);
+  }
+  $("r-i").textContent = fmtI(i1) + " / " + fmtI(S.mode === "inv" ? i2 : (sim.vout - sim.vn) / S.rf);
+  const st = $("r-state");
+  st.textContent = sat ? (sim.vout > 0 ? "CLIPPED +" : "CLIPPED " + MINUS) : "LINEAR";
+  st.classList.toggle("sat", sat);
+}
+
+// ---------- loop ----------
+let last = performance.now();
+function frame(now) {
+  const realDt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (!S.paused) {
+    const simDt = realDt * S.speed, n = Math.max(1, Math.round(simDt / DT));
+    for (let i = 0; i < n; i++) step(DT);
+    checkExps(simDt);
+  }
+  updateLive(realDt);
+  drawScope();
+  requestAnimationFrame(frame);
+}
+
+buildSchematic(); syncUI(); renderExps(); sizeScope();
+for (let i = 0; i < 3000; i++) step(DT); // start with a full scope
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

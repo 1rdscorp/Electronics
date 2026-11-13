@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>New Lab</title>
+<!--
+  Starter for a new lab page. Copy this file, rename it (e.g. labs/rc-filter.html),
+  build your lab in it, then register it in labs/labs.js.
+
+  Each lab is a complete, self-contained page: it runs inside the site's frame,
+  but also works if opened on its own. Its CSS and JS cannot clash with other labs.
+-->
+<style>
+:root{
+  --bg:#0e151d; --panel:#141e29; --line:#2a3a4c; --ink:#dfe8f0; --muted:#8597a9; --accent:#5fd68f;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.45}
+body{padding:18px clamp(16px,3vw,32px) 40px}
+h1{font-size:26px;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+</style>
+</head>
+<body>
+  <h1>New Lab</h1>
+  <p class="sub">One line on what this lab lets you explore.</p>
+  <section class="card">
+    Build the lab here.
+  </section>
+<script>
+// Lab code goes here.
+</script>
+</body>
+</html>

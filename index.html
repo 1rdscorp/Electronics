@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Electronics Bench</title>
+<meta name="description" content="Interactive electronics labs: op-amps, transistors and more.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b1118;
+  --panel:#121b25;
+  --panel-2:#18242f;
+  --line:#253546;
+  --ink:#dfe8f0;
+  --muted:#8597a9;
+  --brand:#5fd68f;
+  --font-display:"Chakra Petch", system-ui, sans-serif;
+  --font-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.45}
+body{display:flex;flex-direction:column;min-height:100dvh}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+/* ---------- top bar ---------- */
+.bar{flex:none;display:flex;align-items:center;gap:14px;padding:8px clamp(12px,2vw,20px);background:var(--panel);border-bottom:1px solid var(--line);min-width:0}
+.logo{display:flex;align-items:center;gap:9px;text-decoration:none;flex:none}
+.logo svg{display:block}
+.logo span{font-family:var(--font-display);font-weight:700;font-size:17px;letter-spacing:.04em}
+.nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;min-width:0;flex:1}
+.nav::-webkit-scrollbar{display:none}
+.nav a{flex:none;text-decoration:none;font-family:var(--font-display);font-weight:600;font-size:14px;letter-spacing:.03em;color:var(--muted);padding:7px 13px;border-radius:8px;border:1px solid transparent;white-space:nowrap}
+.nav a:hover{color:var(--ink);background:var(--panel-2)}
+.nav a[aria-current="page"]{color:var(--ink);background:var(--panel-2);border-color:var(--accent,var(--line));box-shadow:inset 0 -2px 0 var(--accent,var(--brand))}
+.nav .s{display:none}
+.pop{flex:none;font-size:12.5px;color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:7px;padding:5px 10px;white-space:nowrap}
+.pop:hover{color:var(--ink);border-color:var(--muted)}
+
+/* ---------- views ---------- */
+.stage{flex:1;position:relative;min-height:0;display:flex}
+.frame{flex:1;width:100%;border:0;display:block;background:var(--bg)}
+.frame[hidden]{display:none}
+
+.home{flex:1;overflow:auto;padding:clamp(24px,5vw,56px) clamp(16px,4vw,48px) 48px}
+.home[hidden]{display:none}
+.hero{max-width:900px;margin:0 auto 28px}
+.hero h1{font-family:var(--font-display);font-weight:700;font-size:clamp(28px,4.5vw,40px);letter-spacing:.02em;margin:0 0 6px;text-wrap:balance}
+.hero p{margin:0;color:var(--muted);font-size:16px;max-width:60ch}
+.grid{max-width:900px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px}
+.tile{display:grid;gap:10px;align-content:start;text-decoration:none;background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--accent,var(--brand));border-radius:12px;padding:18px 18px 16px;transition:border-color .15s,transform .15s}
+.tile:hover{border-color:var(--accent,var(--brand));transform:translateY(-2px)}
+.tile h2{font-family:var(--font-display);font-weight:600;font-size:20px;margin:0;letter-spacing:.02em}
+.tile p{margin:0;color:var(--muted);font-size:14px}
+.tags{display:flex;flex-wrap:wrap;gap:5px}
+.tags span{font-family:var(--font-mono);font-size:11.5px;color:var(--ink);background:var(--panel-2);border-radius:5px;padding:2px 7px}
+.go{font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent,var(--brand))}
+.empty{max-width:900px;margin:0 auto;color:var(--muted)}
+.foot{max-width:900px;margin:32px auto 0;color:var(--muted);font-size:13px;border-top:1px dashed var(--line);padding-top:14px}
+.foot code{font-family:var(--font-mono);font-size:12.5px;color:var(--ink)}
+
+@media (max-width:640px){
+  .logo span{display:none}
+  .nav .l{display:none}
+  .nav .s{display:inline}
+  .pop{display:none}
+}
+@media (prefers-reduced-motion:reduce){.tile{transition:none}.tile:hover{transform:none}}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <a class="logo" href="#/" aria-label="Electronics Bench home">
+    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+      <rect x="1" y="1" width="24" height="24" rx="6" fill="#18242f" stroke="#5fd68f" stroke-width="1.5"/>
+      <path d="M4 13h4l2-5 3 10 3-10 2 5h4" fill="none" stroke="#5fd68f" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+    <span>Electronics Bench</span>
+  </a>
+  <nav class="nav" id="nav" aria-label="Labs"></nav>
+  <a class="pop" id="pop" href="#" target="_blank" rel="noopener" hidden>Open in new tab ↗</a>
+</header>
+
+<main class="stage" id="stage">
+  <section class="home" id="home" aria-labelledby="home-title">
+    <div class="hero">
+      <h1 id="home-title">Electronics Bench</h1>
+      <p>Interactive labs for learning circuits. Pick a bench, turn the knobs and watch what the circuit does.</p>
+    </div>
+    <div class="grid" id="grid"></div>
+    <p class="foot">Adding a lab: put its HTML file in <code>labs/</code> and list it in <code>labs/labs.js</code>.</p>
+  </section>
+</main>
+
+<script src="labs/labs.js"></script>
+<script>
+(() => {
+  "use strict";
+  const SITE = "Electronics Bench";
+  const labs = (window.LABS || []).filter(l => l && l.id && l.file);
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const accent = l => l.accent ? ` style="--accent:${esc(l.accent)}"` : "";
+
+  // nav + home cards, both generated from the registry
+  $("nav").innerHTML = `<a href="#/" data-id="">Home</a>` + labs.map(l =>
+    `<a href="#/${esc(l.id)}" data-id="${esc(l.id)}"${accent(l)}><span class="l">${esc(l.title)}</span><span class="s">${esc(l.short || l.title)}</span></a>`).join("");
+  $("grid").innerHTML = labs.length ? labs.map(l => `
+    <a class="tile" href="#/${esc(l.id)}"${accent(l)}>
+      <h2>${esc(l.title)}</h2>
+      ${l.summary ? `<p>${esc(l.summary)}</p>` : ""}
+      ${l.topics && l.topics.length ? `<div class="tags">${l.topics.map(t => `<span>${esc(t)}</span>`).join("")}</div>` : ""}
+      <span class="go">Open lab →</span>
+    </a>`).join("") : "";
+  if (!labs.length) $("grid").outerHTML = `<p class="empty">No labs registered yet. Add one in labs/labs.js.</p>`;
+
+  // Each lab gets its own iframe, created on first visit and kept afterwards,
+  // so switching between labs doesn't reset the knobs you've turned.
+  const frames = {};
+  function frameFor(lab) {
+    if (!frames[lab.id]) {
+      const f = document.createElement("iframe");
+      f.className = "frame";
+      f.title = lab.title;
+      f.src = lab.file;
+      $("stage").appendChild(f);
+      frames[lab.id] = f;
+    }
+    return frames[lab.id];
+  }
+
+  function route() {
+    const id = decodeURIComponent(location.hash.replace(/^#\/?/, ""));
+    const lab = labs.find(l => l.id === id);
+    $("home").hidden = !!lab;
+    Object.values(frames).forEach(f => f.hidden = true);
+    if (lab) {
+      const f = frameFor(lab);
+      f.hidden = false;
+      f.focus({ preventScroll: true });
+      document.title = `${lab.title} · ${SITE}`;
+      $("pop").href = lab.file;
+      $("pop").hidden = false;
+    } else {
+      if (id) history.replaceState(null, "", "#/");
+      document.title = SITE;
+      $("pop").hidden = true;
+    }
+    document.querySelectorAll("#nav a").forEach(a => {
+      const on = a.dataset.id === (lab ? lab.id : "");
+      if (on) { a.setAttribute("aria-current", "page"); a.scrollIntoView({ block: "nearest", inline: "nearest" }); }
+      else a.removeAttribute("aria-current");
+    });
+  }
+  window.addEventListener("hashchange", route);
+  route();
+})();
+</script>
+</body>
+</html>
