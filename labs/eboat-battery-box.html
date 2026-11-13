@@ -1,0 +1,2228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E-Boat Battery Box</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Layout: full-height workbench. 3D viewport on the left, spec / wiring / build panel on the right; stacks on phones. Single dark theme by choice. */
+  --bg:#0b1216;
+  --surface:#10191f;
+  --raised:#16232b;
+  --line:#22343e;
+  --ink:#e2ebee;
+  --muted:#8ea2ac;
+  --accent:#46c3cd;
+  --ok:#62cf90;
+  --warn:#f0b44c;
+  --crit:#ff6a5f;
+  --pos:#d84a40;
+  --neg:#3a4046;
+  --display:'Barlow Condensed','Arial Narrow',Arial,sans-serif;
+  --body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
+
+/* header */
+.top{display:flex;align-items:center;gap:12px 20px;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap;background:var(--surface)}
+.brand{display:flex;flex-direction:column;gap:0}
+.brand h1{margin:0;font:700 22px/1.05 var(--display);letter-spacing:.02em;text-transform:uppercase;text-wrap:balance}
+.brand span{color:var(--muted);font-size:12px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.chip{font:500 12px/1 var(--mono);padding:6px 9px;border:1px solid var(--line);border-radius:999px;background:var(--raised);font-variant-numeric:tabular-nums;white-space:nowrap}
+.chip b{color:var(--accent);font-weight:600}
+
+/* main */
+main{display:grid;grid-template-columns:minmax(0,1fr) 400px;min-height:0}
+#viewport{position:relative;min-height:0;overflow:hidden;background:#0e161b}
+#stage{position:absolute;inset:0}
+#stage canvas{display:block;width:100%;height:100%;touch-action:none}
+.label-layer{position:absolute;inset:0;pointer-events:none}
+
+/* toolbar */
+.toolbar{position:absolute;top:12px;left:12px;right:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;pointer-events:none;z-index:3}
+.toolbar>*{pointer-events:auto}
+.seg{display:flex;background:rgba(16,25,31,.88);border:1px solid var(--line);border-radius:8px;padding:2px;backdrop-filter:blur(6px)}
+.seg button,.tbtn{border:0;background:transparent;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:500;color:var(--muted)}
+.seg button:hover,.tbtn:hover{color:var(--ink);background:rgba(70,195,205,.08)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#062327}
+.tbtn{background:rgba(16,25,31,.88);border:1px solid var(--line);border-radius:8px;padding:7px 11px;backdrop-filter:blur(6px)}
+.tbtn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.slider{display:flex;align-items:center;gap:8px;background:rgba(16,25,31,.88);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12.5px;color:var(--muted);backdrop-filter:blur(6px)}
+.slider input{width:110px;accent-color:var(--accent)}
+.slider select{background:transparent;border:0;color:var(--ink);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;padding:0 2px}
+.slider select option{background:#10191f;color:var(--ink)}
+.slider output{font:500 11.5px var(--mono);color:var(--ink);min-width:30px;text-align:right;font-variant-numeric:tabular-nums}
+
+/* legend + hint */
+.legend{position:absolute;left:12px;bottom:12px;background:rgba(16,25,31,.9);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:11.5px;color:var(--muted);display:grid;gap:5px;z-index:2;max-width:260px}
+.legend .ramp{height:8px;border-radius:4px;background:linear-gradient(90deg,hsl(215 55% 50%),hsl(168 55% 50%),hsl(120 55% 50%),hsl(72 55% 50%),hsl(25 55% 50%))}
+.legend .rampl{display:flex;justify-content:space-between;font:500 10.5px var(--mono)}
+.legend .row{display:flex;align-items:center;gap:7px}
+.sw{display:inline-block;width:18px;height:5px;border-radius:3px;flex:none}
+.hint{position:absolute;right:12px;bottom:12px;font-size:11.5px;color:var(--muted);background:rgba(16,25,31,.8);border:1px solid var(--line);border-radius:8px;padding:6px 10px;z-index:1}
+
+/* info card + tooltip */
+.card{position:absolute;right:12px;bottom:12px;width:min(340px,calc(100% - 24px));max-height:calc(100% - 80px);overflow:auto;background:rgba(16,25,31,.96);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:14px 16px;z-index:4;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.card[hidden]{display:none}
+.card .kicker{font:600 11px/1.2 var(--mono);color:var(--accent);text-transform:uppercase;letter-spacing:.06em}
+.card h3{margin:4px 0 10px;font:700 21px/1.1 var(--display);letter-spacing:.01em;text-wrap:balance;padding-right:24px}
+.card dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:12.5px}
+.card dt{color:var(--muted)}
+.card dd{margin:0;font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+.card p{margin:10px 0 0;font-size:12.5px;color:#c4d2d7}
+.card .x{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:6px;border:1px solid var(--line);background:transparent;cursor:pointer;color:var(--muted)}
+.card .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.card .acts button{border:1px solid var(--accent);background:transparent;color:var(--accent);border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer}
+.tip{position:absolute;z-index:5;pointer-events:none;background:#071014;border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:12px;white-space:nowrap;transform:translate(12px,12px)}
+.tip[hidden]{display:none}
+.loadmsg{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px;text-align:center;padding:24px}
+
+/* 3D labels */
+.lbl{font:600 11px/1 var(--mono);padding:3px 6px;border-radius:4px;background:rgba(9,15,19,.84);border:1px solid #2c414c;color:var(--ink);white-space:nowrap}
+.lbl.comp{font:600 13px/1 var(--display);letter-spacing:.03em;text-transform:uppercase;padding:4px 7px;border-color:#3b5865}
+.lbl.tap{font-size:10px;padding:2px 4px}
+.lbl.grp{background:transparent;border:0;font-size:11px;color:#fff;text-shadow:0 0 3px #000,0 0 6px #000}
+.lbl.pos{border-color:var(--pos)}
+.lbl.neg{border-color:#8a949b}
+
+/* panel */
+.panel{border-left:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;min-height:0}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line)}
+.tabs button{border:0;background:transparent;padding:12px 6px 10px;cursor:pointer;font:600 15px/1 var(--display);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid transparent}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.panes{overflow:auto;flex:1;padding:16px 16px 28px}
+.pane{display:grid;gap:14px}
+.pane[hidden]{display:none}
+.pane h2{margin:6px 0 0;font:700 15px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.callout{border:1px solid var(--line);border-left:3px solid var(--warn);background:rgba(240,180,76,.06);border-radius:8px;padding:10px 12px;font-size:12.8px}
+.callout.crit{border-left-color:var(--crit);background:rgba(255,106,95,.06)}
+.callout strong{display:block;margin-bottom:3px}
+.callout p{margin:0;color:#c4d2d7}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form .full{grid-column:1/-1}
+.field{display:grid;gap:4px}
+.field label{font-size:12px;color:var(--muted)}
+.field input,.field select{background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%;font-family:var(--mono);font-size:13px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0}
+.stat{background:var(--raised);border:1px solid var(--line);border-radius:8px;padding:9px 11px;display:grid;gap:2px}
+.stat dt{font-size:11.5px;color:var(--muted)}
+.stat dd{margin:0;font:600 19px/1.15 var(--mono);font-variant-numeric:tabular-nums}
+.stat dd small{font-size:11.5px;font-weight:400;color:var(--muted)}
+.stat.wide{grid-column:1/-1}
+.stat .pill{display:inline-block;padding:4px 8px;margin-left:6px;vertical-align:2px}
+.parts{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.part{display:grid;grid-template-columns:62px 1fr;gap:10px;align-items:start;background:var(--raised);border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+.pill{font:600 10.5px/1 var(--mono);text-transform:uppercase;letter-spacing:.05em;padding:5px 0;border-radius:999px;text-align:center;border:1px solid}
+.pill.ok{color:var(--ok);border-color:rgba(98,207,144,.5);background:rgba(98,207,144,.08)}
+.pill.warn{color:var(--warn);border-color:rgba(240,180,76,.5);background:rgba(240,180,76,.08)}
+.pill.crit{color:var(--crit);border-color:rgba(255,106,95,.5);background:rgba(255,106,95,.08)}
+.pt{font-weight:600;font-size:13px}
+.pv{font-family:var(--mono);font-size:12.5px;color:var(--accent);margin-top:1px}
+.pn{font-size:12px;color:var(--muted);margin-top:3px}
+.runs{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.run{display:grid;grid-template-columns:6px 1fr auto;gap:10px;align-items:center;background:var(--raised);border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer;text-align:left;width:100%}
+.run:hover{border-color:var(--accent)}
+.run .bar{width:6px;align-self:stretch;border-radius:3px}
+.run .rt{font-size:12.8px}
+.run .rt small{display:block;color:var(--muted);font-size:11.5px}
+.run .rs{font:500 12px var(--mono);text-align:right;white-space:nowrap}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th,td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font:600 11px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;background:var(--raised);position:sticky;top:0}
+td.num{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:rgba(70,195,205,.07)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.groups{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.groups button{border:1px solid var(--line);background:var(--raised);border-radius:6px;padding:6px 0 5px;cursor:pointer;font:600 12px/1.1 var(--mono);display:grid;gap:2px;justify-items:center}
+.groups button span{font-weight:400;font-size:10px;color:var(--muted)}
+.groups button:hover{border-color:var(--accent)}
+ol.steps{margin:0;padding:0;list-style:none;counter-reset:s;display:grid;gap:8px}
+ol.steps li{counter-increment:s;display:grid;grid-template-columns:26px 1fr;gap:8px;font-size:12.8px;color:#c9d6db}
+ol.steps li::before{content:counter(s);font:600 12px/24px var(--mono);width:24px;height:24px;border-radius:50%;background:var(--raised);border:1px solid var(--line);text-align:center;color:var(--accent)}
+ol.steps b{color:var(--ink);font-weight:600}
+.toggles{display:grid;gap:2px}
+.tg{display:flex;align-items:center;gap:10px;padding:6px 4px;border-radius:6px;cursor:pointer;font-size:13px}
+.tg:hover{background:var(--raised)}
+.tg input{width:16px;height:16px;accent-color:var(--accent)}
+.tg .sw{width:22px}
+.radios{display:flex;gap:6px;flex-wrap:wrap}
+.radios label{display:flex;gap:6px;align-items:center;font-size:13px;background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:6px 9px;cursor:pointer}
+.small{font-size:12px;color:var(--muted);margin:0}
+.kv{display:grid;grid-template-columns:1fr auto;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:12.5px}
+.kv div{padding:6px 10px;border-bottom:1px solid var(--line)}
+.kv div:nth-child(even){font-family:var(--mono);text-align:right}
+.kv div:nth-last-child(-n+2){border-bottom:0}
+
+/* power dock */
+.dock{padding:12px 16px 14px;border-bottom:1px solid var(--line);display:grid;gap:9px;background:linear-gradient(180deg,#132029,#10191f)}
+.dock-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dock-h h2{margin:0;font:700 15px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--ink)}
+.dock-h h2 small{font:500 11px var(--body);letter-spacing:0;text-transform:none;color:var(--muted);margin-left:6px}
+.seg.mini{padding:2px}
+.seg.mini button{padding:4px 8px;font:600 11.5px var(--mono)}
+.dock-tg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.tog{border:1px solid var(--line);background:var(--raised);border-radius:8px;padding:6px 9px;text-align:left;cursor:pointer;display:grid;gap:1px}
+.tog small{font:600 10px/1.2 var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.tog span{font-weight:600;font-size:13px}
+.tog:hover{border-color:#3b5865}
+.tog[aria-pressed="true"]{border-color:var(--accent);background:rgba(70,195,205,.1)}
+.tog[aria-pressed="true"] span{color:var(--accent)}
+.dock-sl{display:grid;grid-template-columns:58px 1fr 96px;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.dock-sl input{width:100%;accent-color:var(--accent)}
+.dock-sl output{font:500 12px var(--mono);color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.dock-read{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.rd{background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:5px 8px;display:grid;gap:1px}
+.rd small{font-size:10.5px;color:var(--muted)}
+.rd b{font:600 14px/1.2 var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rd b.chg{color:#56e0c8}.rd b.dis{color:#ffc857}.rd b.hot{color:var(--warn)}
+.dock-bms{display:flex;gap:8px;align-items:center;font-size:12.5px;line-height:1.35;min-height:34px}
+.dock-bms .pill{padding:4px 8px;flex:none}
+.toast{position:absolute;left:50%;top:64px;transform:translateX(-50%);z-index:6;max-width:min(460px,calc(100% - 24px));background:#2a1f0b;border:1px solid var(--warn);color:#ffe2a8;border-radius:8px;padding:8px 12px;font-size:12.8px;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.toast[hidden]{display:none}
+@media (max-width:900px){
+  html,body{height:auto}
+  #app{height:auto}
+  main{grid-template-columns:1fr;grid-template-rows:62vh auto}
+  .panel{border-left:0;border-top:1px solid var(--line)}
+  .panes{overflow:visible}
+  .legend{display:none}
+  .hint{display:none}
+  .chips{margin-left:0}
+}
+@media (max-width:420px){
+  .form{grid-template-columns:1fr}
+  .slider input{width:80px}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+
+/* pack configuration */
+.cfg{display:grid;gap:8px;background:var(--raised);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.cfg-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px}
+.cfg-row>span{color:var(--muted)}
+.step{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.step button{width:36px;height:32px;border:0;background:transparent;cursor:pointer;font:600 18px/1 var(--mono);color:var(--accent)}
+.step button:hover{background:rgba(70,195,205,.12)}
+.step button:disabled{color:var(--muted);opacity:.4;cursor:default;background:transparent}
+.step input{width:54px;height:32px;border:0;border-left:1px solid var(--line);border-right:1px solid var(--line);background:transparent;text-align:center;font:600 15px var(--mono);-moz-appearance:textfield;appearance:textfield}
+.step input::-webkit-outer-spin-button,.step input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.cfg-sum{font:500 12px/1.4 var(--mono);color:var(--muted);border-top:1px solid var(--line);padding-top:8px}
+.cfg-sum b{color:var(--ink);font-weight:600}
+.dock-read{grid-template-columns:repeat(5,1fr)!important}
+.rd b{font-size:13px!important}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <h1 id="h-title">E-Boat Battery Box · 14S10P</h1>
+      <span id="h-sub">140 × 21700 cells · interactive 3D build model</span>
+    </div>
+    <div class="chips" id="chips" aria-live="polite"></div>
+  </header>
+  <main>
+    <section id="viewport" aria-label="3D model of the battery box">
+      <div id="stage"></div>
+      <div class="loadmsg" id="loadmsg">Loading 3D model…</div>
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="Camera view">
+          <button data-view="iso" aria-pressed="true">3D</button>
+          <button data-view="top" aria-pressed="false">Top</button>
+          <button data-view="front" aria-pressed="false">Front</button>
+          <button data-view="side" aria-pressed="false">Side</button>
+          <button data-view="rear" aria-pressed="false">Rear</button>
+          <button data-view="bottom" aria-pressed="false">Bottom</button>
+        </div>
+        <label class="slider" for="explode">Explode <input type="range" id="explode" min="0" max="100" value="0"></label>
+        <label class="slider" for="quality">Quality <select id="quality"><option value="ultra">Ultra</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
+        <label class="slider" for="scene">Scene <select id="scene"></select></label>
+        <button class="tbtn" id="btn-flow" aria-pressed="true">Current flow</button>
+        <button class="tbtn" id="btn-labels" aria-pressed="true">Labels</button>
+        <button class="tbtn" id="btn-sound" aria-pressed="true" title="Motor and spark sounds on or off">Sound</button>
+        <label class="slider" for="vol">Volume <input type="range" id="vol" min="0" max="100" value="70"><output id="vol-o" for="vol">70%</output></label>
+        <button class="tbtn" id="btn-bus" aria-pressed="true" title="Show or hide the nickel strips, copper tabs and U-turn bus">Busbars</button>
+        <button class="tbtn" id="btn-xray" aria-pressed="false">X-ray</button>
+        <button class="tbtn" id="btn-lid" aria-pressed="false">Lid on</button>
+      </div>
+      <div class="legend" aria-label="Legend">
+        <div>Cells &amp; balance leads coloured by series position</div>
+        <div class="ramp"></div>
+        <div class="rampl"><span>G1 · B0 (0 V)</span><span id="lg-end">G14 · B14 (58.8 V)</span></div>
+        <div class="row"><span class="sw" style="background:var(--pos)"></span>Positive main / charge cable</div>
+        <div class="row"><span class="sw" style="background:#15181b;border:1px solid #59636a"></span>Negative main / charge cable</div>
+        <div class="row"><span class="sw" style="background:#c87a43"></span>Copper tab / U-turn bus</div>
+        <div class="row"><span class="sw" style="background:#c9ccc8"></span>Nickel / Cu-Ni strip</div>
+        <div class="row"><span class="sw" style="background:#ffc857"></span>Current flow · discharge</div>
+        <div class="row"><span class="sw" style="background:#56e0c8"></span>Current flow · charge</div>
+      </div>
+      <div class="hint" id="hint">Drag to orbit, also from underneath · scroll to zoom · right-drag to pan · click any part</div>
+      <div class="card" id="info" hidden role="region" aria-live="polite" aria-label="Part details">
+        <button class="x" id="info-x" aria-label="Close details">✕</button>
+        <div class="kicker" id="info-kicker"></div>
+        <h3 id="info-title"></h3>
+        <dl id="info-rows"></dl>
+        <p id="info-note"></p>
+        <div class="acts" id="info-acts"></div>
+      </div>
+      <div class="tip" id="tip" hidden></div>
+      <div class="toast" id="toast" role="status" hidden></div>
+    </section>
+
+    <aside class="panel" aria-label="Pack details">
+      <section class="dock" aria-label="Power simulation">
+        <div class="dock-h">
+          <h2>Power <small>live simulation</small></h2>
+          <div class="seg mini" role="group" aria-label="Simulation speed">
+            <button data-speed="0" aria-pressed="false" aria-label="Pause">❚❚</button>
+            <button data-speed="1" aria-pressed="true">1×</button>
+            <button data-speed="60" aria-pressed="false">60×</button>
+            <button data-speed="600" aria-pressed="false">600×</button>
+          </div>
+        </div>
+        <div class="dock-tg">
+          <button class="tog" id="t-charger" aria-pressed="false"><small>Charger</small><span>Unplugged</span></button>
+          <button class="tog" id="t-load" aria-pressed="true"><small>Load · <span class="cn">AS150</span></small><span>Connected</span></button>
+          <button class="tog" id="t-sw" aria-pressed="true"><small>Main switch</small><span>ON</span></button>
+        </div>
+        <div class="dock-sl"><label for="d-thr">Throttle</label><input type="range" id="d-thr" min="0" max="100" value="40"><output id="d-thr-o" for="d-thr">40%</output></div>
+        <div class="dock-sl"><label for="d-soc">Charge</label><input type="range" id="d-soc" min="0" max="100" step="0.1" value="80"><output id="d-soc-o" for="d-soc">80%</output></div>
+        <div class="dock-read" id="d-read"></div>
+        <div class="dock-bms" id="d-bms"></div>
+      </section>
+      <nav class="tabs" role="tablist">
+        <button role="tab" id="tab-pack" aria-selected="true" aria-controls="pane-pack">Pack</button>
+        <button role="tab" id="tab-wiring" aria-selected="false" aria-controls="pane-wiring">Wiring</button>
+        <button role="tab" id="tab-layers" aria-selected="false" aria-controls="pane-layers">Layers</button>
+        <button role="tab" id="tab-build" aria-selected="false" aria-controls="pane-build">Build</button>
+      </nav>
+      <div class="panes">
+        <!-- PACK -->
+        <section class="pane" id="pane-pack" role="tabpanel" aria-labelledby="tab-pack">
+          <h2>Configuration</h2>
+          <div class="cfg">
+            <div class="cfg-row"><span>Cell size</span>
+              <div class="seg mini" role="group" aria-label="Cell size">
+                <button data-fmt="21700" aria-pressed="true">21700</button>
+                <button data-fmt="18650" aria-pressed="false">18650</button>
+              </div>
+            </div>
+            <div class="cfg-row"><label for="in-s">Series groups (S)</label>
+              <div class="step"><button id="s-dec" aria-label="Remove a series group">−</button><input id="in-s" type="number" min="4" max="20" value="14"><button id="s-inc" aria-label="Add a series group">+</button></div>
+            </div>
+            <div class="cfg-row"><label for="in-p">Cells in parallel (P)</label>
+              <div class="step"><button id="p-dec" aria-label="Remove a parallel cell from every group">−</button><input id="in-p" type="number" min="1" max="16" value="10"><button id="p-inc" aria-label="Add a parallel cell to every group">+</button></div>
+            </div>
+            <div class="cfg-row"><span>Output connector</span>
+              <div class="seg mini" role="group" aria-label="Output connector">
+                <button data-conn="as150" aria-pressed="true">AS150</button>
+                <button data-conn="qs8" aria-pressed="false">QS8-S</button>
+              </div>
+            </div>
+            <div class="cfg-sum" id="cfg-sum"></div>
+          </div>
+          <h2>Cells</h2>
+          <div class="form">
+            <div class="field full"><label for="in-cell">Cell model</label><select id="in-cell"></select></div>
+            <div class="field"><label for="in-ah">Capacity per cell (Ah)</label><input id="in-ah" type="number" step="0.1" min="1" max="6" value="5.0"></div>
+            <div class="field"><label for="in-a">Continuous rating per cell (A)</label><input id="in-a" type="number" step="1" min="1" max="60" value="25"></div>
+          </div>
+          <h2>Load</h2>
+          <div class="form">
+            <div class="field"><label for="in-w">Motor input power at full throttle (W)</label><input id="in-w" type="number" step="100" min="100" max="15000" value="2000"></div>
+            <div class="field"><label for="in-cut">Cell cutoff voltage (V)</label><input id="in-cut" type="number" step="0.1" min="2.5" max="3.4" value="3.0"></div>
+            <div class="field"><label for="in-chg">Charger current (A)</label><input id="in-chg" type="number" step="1" min="1" max="60" value="10"></div>
+          </div>
+          <h2>Pack</h2>
+          <dl class="stats" id="stats"></dl>
+          <h2>Parts this load needs</h2>
+          <ul class="parts" id="parts"></ul>
+          <p class="small">Planning figures, not a certified design. Cable ratings use a conservative table for 105 °C tinned marine cable in a closed box. Check every part against its own datasheet.</p>
+        </section>
+
+        <!-- WIRING -->
+        <section class="pane" id="pane-wiring" role="tabpanel" aria-labelledby="tab-wiring" hidden>
+          <h2>Main power runs</h2>
+          <p class="small">Click a run to highlight it in 3D. Lengths are measured from the model.</p>
+          <ul class="runs" id="runs"></ul>
+          <h2 id="bal-h">Balance leads · 15-pin BMS plug</h2>
+          <p class="small">22 AWG silicone, one per series node. Click a row to light up the lead and the strip it lands on.</p>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Lead</th><th>Lands on</th><th>Strip</th><th class="num">Full</th><th class="num">Nom</th></tr></thead>
+              <tbody id="baltbody"></tbody>
+            </table>
+          </div>
+          <h2 id="grp-h">Series groups (10P each)</h2>
+          <div class="groups" id="groups"></div>
+          <p class="small" id="grp-note"></p>
+          <h2>Connection order</h2>
+          <ol class="steps">
+            <li><span>Measure every tap first: <b>B(n) − B0 should read n × cell voltage</b>, rising in even ~3.6–4.2 V steps. Fix any odd step before going on.</span></li>
+            <li><span>Bolt the <b>B− heavy lead</b> from the pack to the BMS B− pad.</span></li>
+            <li><span>Plug in the <b>balance connector</b> last on the BMS side (most BMS manuals ask for this order; follow yours).</span></li>
+            <li><span>Connect <b>P−</b> to the output and charge negatives.</span></li>
+            <li><span>With the switch OFF, connect <b>B+ → Class T fuse → switch</b>, then the output positive.</span></li>
+            <li><span>Wake the BMS, check every cell reading, then connect the controller through the anti-spark <span class="cn">AS150</span>.</span></li>
+          </ol>
+        </section>
+
+        <!-- LAYERS -->
+        <section class="pane" id="pane-layers" role="tabpanel" aria-labelledby="tab-layers" hidden>
+          <h2>Show parts</h2>
+          <div class="toggles" id="toggles"></div>
+          <h2>Labels</h2>
+          <div class="toggles">
+            <label class="tg"><input type="checkbox" id="lb-comp" checked> Component names</label>
+            <label class="tg"><input type="checkbox" id="lb-tap" checked> Balance taps</label>
+            <label class="tg"><input type="checkbox" id="lb-grp" checked> Series groups</label>
+          </div>
+          <h2>Cell colour</h2>
+          <div class="radios" role="radiogroup" aria-label="Cell colour">
+            <label><input type="radio" name="cc" value="group" checked> By series group</label>
+            <label><input type="radio" name="cc" value="plain"> Plain wrap</label>
+          </div>
+          <p class="small">X-ray makes cells and holders see-through so you can follow strips, the U-turn bus and current flow through the pack.</p>
+        </section>
+
+        <!-- BUILD -->
+        <section class="pane" id="pane-build" role="tabpanel" aria-labelledby="tab-build" hidden>
+          <div class="callout crit">
+            <strong id="b-energy">140 cells hold about 2.5 kWh and can push thousands of amps into a short.</strong>
+            <p>Work on a non-conductive mat with insulated tools, no rings or watch. Cover every exposed strip and terminal you are not working on. Keep a fire blanket and a bucket of sand nearby.</p>
+          </div>
+          <h2>Build sequence</h2>
+          <ol class="steps">
+            <li><span><b>Match cells.</b> Same model and batch; resting voltage within 0.05 V across every cell before any parallel welding. Reject dented wraps.</span></li>
+            <li><span><b>Load the holders.</b> <span id="b-grp">Each group is 2 rows × 5 cells.</span> Flip orientation every group: G1 + up, G2 + down, and so on. Paper insulator ring on every + end.</span></li>
+            <li><span><b>Fit the divider</b> between column A and B before welding. <span id="b-div">Cells across it sit up to 13 series steps apart (≈ 55 V).</span></span></li>
+            <li><span><b>Spot-weld</b> the bottom strips (even nodes B0, B2 …) and the top strips (odd nodes B1, B3 …), plus the copper terminal tabs and the U-turn bus. Never solder onto a cell.</span></li>
+            <li><span><b>Check every node</b> with a meter against B0, then solder balance leads to strip tails, not to cells. Glue them down, Kapton over strip edges.</span></li>
+            <li><span><b>Insulate and pad</b>: fish paper top and bottom, closed-cell EVA foam to the walls, NTC 1 in the pack centre, NTC 2 at the U-turn.</span></li>
+            <li><span><b>Wire the BMS</b> in the order on the Wiring tab, then the fuse, switch, glands and <span class="cn">AS150</span> output plug.</span></li>
+            <li><span><b>Configure and test</b>: first charge at low current, watch balance and temperatures, then a load test at the planned power.</span></li>
+            <li><span><b>Install</b> above bilge water, strapped down, ventilated compartment, fuse as close to the battery as the layout allows.</span></li>
+          </ol>
+          <h2>BMS starting settings (Li-ion NMC)</h2>
+          <div class="kv" id="bmsset"></div>
+          <p class="small">Starting points only. Your cell datasheet and BMS manual win where they differ.</p>
+          <h2>Marine notes</h2>
+          <ol class="steps">
+            <li><span>Use <b>tinned marine cable</b> and crimped, heat-shrunk lugs; corrosion is the usual failure on boats.</span></li>
+            <li><span id="b-vrate">Every fuse and switch in the 58.8 V circuit must carry a <b>DC voltage rating of at least 60 V</b>. Many automotive fuses are only 32 V or 58 V DC rated.</span></li>
+            <li><span>Marine lithium practice (ABYC E-13 in the US) points to a <b>Class T main fuse</b> for its high interrupt rating.</span></li>
+            <li><span>Seal every penetration with a gland and fit a <b>pressure-equalising vent</b> so the box breathes without pulling in water.</span></li>
+          </ol>
+        </section>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+/* ============ Configuration, calculator, power simulation, panel (works without the 3D view) ============ */
+window.BB = window.BB || {};
+(function(){
+  const FORMATS = BB.FORMATS = {
+    '21700': {d:21, h:70, pitch:22.4, g:69, r:0.020, def:'s50s', presets:{
+      s50s:{label:'Samsung 50S · 5.0 Ah · 25 A', ah:5.0, a:25},
+      p45b:{label:'Molicel P45B · 4.5 Ah · 45 A', ah:4.5, a:45},
+      s40t:{label:'Samsung 40T · 4.0 Ah · 35 A', ah:4.0, a:35},
+      generic:{label:'Generic 21700 · 5.0 Ah · 10 A', ah:5.0, a:10}}},
+    '18650': {d:18, h:65, pitch:19.4, g:47, r:0.030, def:'s30q', presets:{
+      s30q:{label:'Samsung 30Q · 3.0 Ah · 15 A', ah:3.0, a:15},
+      vtc6:{label:'Murata VTC6 · 3.0 Ah · 15 A', ah:3.0, a:15},
+      p28a:{label:'Molicel P28A · 2.8 Ah · 35 A', ah:2.8, a:35},
+      s35e:{label:'Samsung 35E · 3.5 Ah · 8 A', ah:3.5, a:8},
+      mj1:{label:'LG MJ1 · 3.5 Ah · 10 A', ah:3.5, a:10},
+      generic:{label:'Generic 18650 · 3.0 Ah · 5 A', ah:3.0, a:5}}}
+  };
+  const cfg = BB.cfg = {fmt:'21700', S:14, P:10, conn:'as150'};
+  // Anti-spark output connectors. Continuous ratings are the conservative published figures.
+  const CONNS = BB.CONNS = {
+    as150: {id:'as150', name:'AS150', long:'Amass AS150 anti-spark, 7 mm bullets', cont:70, burst:150, maxWire:1, wire:'8 AWG', volt:500,
+      poles:'Separate red and black bullet housings', keyNote:'The red and black AS150 bullets are separate plugs, so polarity is not keyed. Clip the housings together or mark them so they cannot go in swapped.'},
+    qs8: {id:'qs8', name:'QS8-S', long:'QS8-S anti-spark, 8 mm bullets', cont:110, burst:180, maxWire:2, wire:'6 AWG', volt:600,
+      poles:'Red and black halves locked side by side', keyNote:'The QS8-S housing is keyed red to red and black to black, so it cannot go in reversed.'}
+  };
+  const S_MIN = 4, S_MAX = 20, P_MIN = 1, P_MAX = 16;
+  // Conservative ampacity for 105 °C tinned marine cable inside a closed box; r = tube radius (mm) used in 3D
+  const AWG = [
+    {awg:'10 AWG', mm2:5.3, amp:55, r:3.1}, {awg:'8 AWG', mm2:8.4, amp:80, r:3.8}, {awg:'6 AWG', mm2:13.3, amp:120, r:4.6},
+    {awg:'4 AWG', mm2:21.2, amp:160, r:5.4}, {awg:'2 AWG', mm2:33.6, amp:210, r:6.4}, {awg:'1/0 AWG', mm2:53.5, amp:285, r:7.6}
+  ];
+  const FUSES = [30,40,50,60,70,80,90,100,110,125,150,175,200,225,250,300,350,400];
+  const BMSR = [20,30,40,60,80,100,120,150,200,250,300];
+  const CHG_FUSE = [5,10,15,20,25,30,40,50,60,80];
+  const $ = s => document.querySelector(s);
+  const inp = {cell:$('#in-cell'), ah:$('#in-ah'), a:$('#in-a'), w:$('#in-w'), cut:$('#in-cut'), chg:$('#in-chg')};
+  const num = (v,d) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
+  const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
+  const f1 = v => v.toFixed(1), f0 = v => Math.round(v).toString();
+  const layoutOf = (S,P) => { const r = P <= 3 ? 1 : 2, w = Math.ceil(P/r), a = Math.ceil(S/2); return {r, w, a, b:S-a}; };
+
+  function fillPresets(){
+    const F = FORMATS[cfg.fmt]; inp.cell.innerHTML = '';
+    for (const [id,p] of Object.entries(F.presets)){ const o = document.createElement('option'); o.value = id; o.textContent = p.label; inp.cell.appendChild(o); }
+    const o = document.createElement('option'); o.value = 'custom'; o.textContent = 'Custom values'; inp.cell.appendChild(o);
+    inp.cell.value = F.def; inp.ah.value = F.presets[F.def].ah.toFixed(1); inp.a.value = F.presets[F.def].a;
+  }
+  fillPresets();
+
+  function compute(){
+    const F = FORMATS[cfg.fmt], S = cfg.S, P = cfg.P, L = layoutOf(S,P);
+    const ah = clamp(num(inp.ah.value,3), 0.5, 10);
+    const a = clamp(num(inp.a.value,10), 1, 100);
+    const W = clamp(num(inp.w.value,2000), 100, 20000);
+    const cut = clamp(num(inp.cut.value,3.0), 2.5, 3.4);
+    const chg = clamp(num(inp.chg.value,10), 1, 100);
+    const vFull = S*4.2, vNom = S*3.6, vCut = S*cut, vRate = Math.ceil((vFull+1)/10)*10;
+    const capAh = P*ah, whNom = vNom*capAh;
+    const frac = clamp(1-(cut-2.5)*0.2, 0.7, 1), whUse = whNom*frac;
+    const iFull = W/vFull, iNom = W/vNom, iCut = W/vCut;
+    const perCell = iCut/P, load = perCell/a;
+    const fuse = FUSES.find(f => f >= iCut*1.25) || FUSES[FUSES.length-1];
+    const cable = AWG.find(g => g.amp >= fuse) || AWG[AWG.length-1];
+    const bms = BMSR.find(b => b >= iCut*1.2) || BMSR[BMSR.length-1];
+    const stripA = iCut/L.w, uturnA = iCut/L.r, busMM2 = Math.max(6, Math.ceil(iCut/4));
+    const chargeC = chg/capAh;
+    const chargeFuse = CHG_FUSE.find(f => f >= chg*1.25) || 80, chargeFuseV = Math.max(80, vRate);
+    const chargeAwg = chg <= 15 ? {awg:'14 AWG', r:1.9} : chg <= 25 ? {awg:'12 AWG', r:2.4} : {awg:'10 AWG', r:3.1};
+    const conn = CONNS[cfg.conn], cableIdx = AWG.indexOf(cable), fits = cableIdx <= conn.maxWire;
+    const other = conn.id === 'as150' ? CONNS.qs8 : null;
+    let xt;
+    if (iCut <= conn.cont && fits) xt = {lvl:'ok', text:`${conn.name} anti-spark pair`, note:`${f0(iCut)} A worst case is inside its ≈${conn.cont} A continuous rating, and it takes ${cable.awg} cable (up to ${conn.wire}).`};
+    else if (iCut <= conn.burst && fits) xt = {lvl:'warn', text:`${conn.name} works, but runs warm`, note:`${f0(iCut)} A is above its ≈${conn.cont} A continuous rating (${conn.burst} A is the short-burst figure).` + (other && iCut <= other.cont ? ` The ${other.name} (≈${other.cont} A continuous) covers this load.` : ' Fine for bursts; for long full-throttle runs use a bigger connector.')};
+    else xt = {lvl:'crit', text:`Too small for this load`, note:`${f0(iCut)} A${fits ? '' : ` and ${cable.awg} cable (it takes ${conn.wire} at most)`} is past what the ${conn.name} is built for.` + (other && iCut <= other.cont && cableIdx <= other.maxWire ? ` Switch to the ${other.name}.` : ' Use an Anderson SB175-class connector or bolted lugs with an isolator.')};
+    let strip;
+    const ns = `${L.w} strip${L.w>1?'s':''}`;
+    if (stripA <= 5) strip = {lvl:'ok', text:'0.15 × 8 mm pure nickel', note:`About ${f1(stripA)} A flows through each of the ${ns} that link one group to the next.`};
+    else if (stripA <= 10) strip = {lvl:'warn', text:'0.2–0.3 mm nickel or Cu-Ni composite', note:`About ${f1(stripA)} A in each of the ${ns} that link one group to the next is too much for thin pure nickel. Copper-nickel sandwich strip runs much cooler.`};
+    else strip = {lvl:'crit', text:'Copper-nickel composite strip', note:`About ${f1(stripA)} A in each of the ${ns} that link one group to the next. Use Cu-Ni sandwich strip or add copper bus over the nickel.`};
+    const loadLvl = load <= 0.5 ? 'ok' : load <= 0.8 ? 'warn' : 'crit';
+    const chgLvl = chargeC <= 0.5 ? 'ok' : chargeC <= 1 ? 'warn' : 'crit';
+    const cellsKg = S*P*F.g/1000;
+    return {S,P,fmt:cfg.fmt,conn:CONNS[cfg.conn],F,L,cells:S*P,ah,a,W,cut,chg,vFull,vNom,vCut,vRate,capAh,whNom,whUse,frac,iFull,iNom,iCut,perCell,load,loadLvl,
+      packMax:P*a, runtimeH:whUse/W, fuse, cable, bms, xt, strip, stripA, uturnA, busMM2,
+      chargeC, chgLvl, chargeFuse, chargeFuseV, chargeAwg, cellsKg, totalKg:cellsKg + 1.8 + 0.0115*S*P};
+  }
+
+  function hm(h){ if (!Number.isFinite(h)) return '—'; const m = Math.round(h*60); return m >= 60 ? `${Math.floor(m/60)} h ${String(m%60).padStart(2,'0')} min` : `${m} min`; }
+  function pill(l){ return `<span class="pill ${l}">${l==='ok'?'OK':l==='warn'?'Check':'Change'}</span>`; }
+  const nodeHue = (k,S) => 215 - k/S*190;
+  const grpHue = (k,S) => 215 - (k-1)/Math.max(1,S-1)*190;
+
+  function render(c){
+    const {S,P,L} = c;
+    $('#h-title').textContent = `E-Boat Battery Box · ${S}S${P}P`;
+    $('#h-sub').textContent = `${c.cells} × ${c.fmt} cells · interactive 3D build model`;
+    $('#chips').innerHTML = `
+      <span class="chip"><b>${f1(c.vNom)} V</b> nom · ${f1(c.vFull)} V full</span>
+      <span class="chip"><b>${f0(c.capAh)} Ah</b> · ${(c.whNom/1000).toFixed(2)} kWh</span>
+      <span class="chip">${f0(c.W)} W → <b>${f0(c.iCut)} A</b> max</span>`;
+    $('#lg-end').textContent = `G${S} · B${S} (${f1(c.vFull)} V)`;
+    // configuration controls
+    document.querySelectorAll('[data-fmt]').forEach(b => b.setAttribute('aria-pressed', b.dataset.fmt === c.fmt));
+    document.querySelectorAll('[data-conn]').forEach(b => b.setAttribute('aria-pressed', b.dataset.conn === c.conn.id));
+    document.querySelectorAll('.cn').forEach(e => { e.textContent = c.conn.name; });
+    if (document.activeElement !== $('#in-s')) $('#in-s').value = S;
+    if (document.activeElement !== $('#in-p')) $('#in-p').value = P;
+    $('#s-dec').disabled = S <= S_MIN; $('#s-inc').disabled = S >= S_MAX; $('#p-dec').disabled = P <= P_MIN; $('#p-inc').disabled = P >= P_MAX;
+    const grpShape = L.r === 1 ? `1 row × ${P}` : (P % 2 ? `2 rows (${L.w} + ${P - L.w})` : `2 rows × ${L.w}`);
+    $('#cfg-sum').innerHTML = `<b>${c.cells} cells</b> · ${c.fmt} · groups of ${grpShape}<br>Column A: G1–G${L.a} · column B: G${L.a+1}–G${S}${S % 2 ? ' (one slot shorter)' : ''}`;
+    // stats + parts
+    $('#stats').innerHTML = `
+      <div class="stat"><dt>Full / nominal</dt><dd>${f1(c.vFull)} <small>/ ${f1(c.vNom)} V</small></dd></div>
+      <div class="stat"><dt>Empty (BMS cutoff)</dt><dd>${f1(c.vCut)} <small>V</small></dd></div>
+      <div class="stat"><dt>Capacity</dt><dd>${f0(c.capAh)} <small>Ah</small></dd></div>
+      <div class="stat"><dt>Energy (usable)</dt><dd>${(c.whNom/1000).toFixed(2)} <small>kWh (${(c.whUse/1000).toFixed(2)})</small></dd></div>
+      <div class="stat"><dt>Current at ${f0(c.W)} W</dt><dd>${f0(c.iNom)}–${f0(c.iCut)} <small>A</small></dd></div>
+      <div class="stat"><dt>Run time at ${f0(c.W)} W</dt><dd>${hm(c.runtimeH)}</dd></div>
+      <div class="stat wide"><dt>Per-cell load at empty</dt><dd>${f1(c.perCell)} A <small>of ${f0(c.a)} A rating (${Math.round(c.load*100)}%) · pack limit ${f0(c.packMax)} A</small> ${pill(c.loadLvl)}</dd></div>
+      <div class="stat wide"><dt>Weight</dt><dd>≈ ${f1(c.totalKg)} <small>kg finished (cells ≈ ${f1(c.cellsKg)} kg)</small></dd></div>`;
+    $('#parts').innerHTML = [
+      {l:'ok', t:'Main cable', v:`${c.cable.awg} (${c.cable.mm2} mm²) tinned marine`, n:`Sized to the ${c.fuse} A fuse so the fuse always blows before the cable overheats (table value ${c.cable.amp} A).`},
+      {l:'ok', t:'Main fuse', v:`${c.fuse} A Class T, 125 V DC`, n:`About 1.25 × the ${f0(c.iCut)} A worst-case draw. Mounted right at the B+ tab.`},
+      {l:'ok', t:'BMS', v:`${S}S common-port, ≥ ${c.bms} A continuous`, n:`${S+1}-wire balance lead, 2 NTC inputs and a display/Bluetooth port. If yours has a separate C− pad, the charger negative goes there instead of P−.`},
+      {l:c.xt.lvl, t:'Output connector', v:c.xt.text, n:c.xt.note},
+      {l:c.strip.lvl, t:'Series strip', v:c.strip.text, n:c.strip.note},
+      {l:'ok', t:'U-turn link', v:`Copper bus ≥ ${c.busMM2} mm²`, n:`The rear crossover carries the whole pack current sideways: about ${f0(c.uturnA)} A in ${L.r === 1 ? 'its single row' : `each of its ${L.r} rows`}.`},
+      {l:'ok', t:'Disconnect switch', v:`Rated ≥ ${c.vRate} V DC, ≥ ${c.fuse} A`, n:'After the fuse. The charge port joins before the switch, so you can charge with it OFF.'},
+      {l:c.chgLvl, t:'Charger', v:`${f1(c.vFull)} V CC/CV · ${f0(c.chg)} A (${c.chargeC.toFixed(2)} C)`, n:`${c.chargeAwg.awg} charge leads with a ${c.chargeFuse} A fuse rated ≥ ${c.chargeFuseV} V DC. Charge only between 0 and 45 °C.`}
+    ].map(p => `<li class="part">${pill(p.l)}<div><div class="pt">${p.t}</div><div class="pv">${p.v}</div><div class="pn">${p.n}</div></div></li>`).join('');
+    $('#bmsset').innerHTML = [
+      ['Cell count', String(S)],
+      ['Cell over-voltage','4.20 V (release 4.10 V)'],
+      ['Cell under-voltage',`${c.cut.toFixed(2)} V (release ${(c.cut+0.2).toFixed(2)} V)`],
+      ['Balance start / trigger','3.90 V / 10 mV'],
+      ['Discharge over-current',`≈ ${c.bms} A`],
+      ['Charge over-current',`≈ ${Math.ceil(c.chg*1.3)} A`],
+      ['Charge temperature','0 – 45 °C'],
+      ['Discharge temperature','−20 – 60 °C']
+    ].map(([k,v]) => `<div>${k}</div><div>${v}</div>`).join('');
+    // build tab
+    $('#b-energy').textContent = `${c.cells} cells hold about ${(c.whNom/1000).toFixed(1)} kWh and can push thousands of amps into a short.`;
+    $('#b-grp').textContent = `Each group is ${grpShape} cells.`;
+    $('#b-div').textContent = `Cells across it sit up to ${S-1} series steps apart (≈ ${f0(c.vFull*(S-1)/S)} V).`;
+    $('#b-vrate').innerHTML = `Every fuse and switch in the ${f1(c.vFull)} V circuit must carry a <b>DC voltage rating of at least ${c.vRate} V</b>. Many automotive fuses are only 32 V or 58 V DC rated.`;
+    // wiring tab
+    $('#bal-h').textContent = `Balance leads · ${S+1}-pin BMS plug`;
+    $('#grp-h').textContent = `Series groups (${P}P each)`;
+    $('#grp-note').textContent = `Column A runs G1 → G${L.a} front to back, the copper U-turn bus crosses at the rear, column B runs G${L.a+1} → G${S} back to the front. That puts B− and B+ side by side next to the BMS and fuse.` + (S % 2 ? ` With an odd count, column B is one group shorter and the B+ tab runs forward from G${S} along the top.` : '');
+    const rows = [];
+    for (let k=0;k<=S;k++){
+      let lands, strip;
+      if (k===0){ lands='G1 − (pack B−)'; strip='bottom · A · front'; }
+      else if (k===S){ lands=`G${S} + (pack B+)`; strip=(S%2 ? 'top' : 'bottom') + ' · B · front'; }
+      else { lands=`G${k}+ / G${k+1}−`; strip = (k%2 ? 'top' : 'bottom') + ' · ' + (k===L.a ? 'U-turn · rear' : (k<L.a ? 'A' : 'B')); }
+      rows.push(`<tr data-k="${k}"><td><span class="dot" style="background:hsl(${nodeHue(k,S)} 60% 55%)"></span><b>B${k}</b></td><td>${lands}</td><td>${strip}</td><td class="num">${(k*4.2).toFixed(1)}</td><td class="num">${(k*3.6).toFixed(1)}</td></tr>`);
+    }
+    $('#baltbody').innerHTML = rows.join('');
+    let g = '';
+    for (let k=1;k<=S;k++) g += `<button data-g="${k}" title="Highlight series group ${k}"><span class="dot" style="background:hsl(${grpHue(k,S)} 55% 50%);margin:0"></span>G${k}<span>+${k%2?'↑':'↓'}</span></button>`;
+    $('#groups').innerHTML = g;
+    renderRuns(c);
+  }
+
+  const RUNS = [
+    {ids:['bneg'], col:'#15181b', t:'B− tab (G1 −) → BMS B−', s:'Pack negative into the BMS', sz:'main'},
+    {ids:['pneg','pig-neg'], col:'#15181b', t:'BMS P− → gland → OUT −', s:'Switched negative to the motor controller', sz:'main'},
+    {ids:['bpos'], col:'var(--pos)', t:'B+ tab → Class T fuse', s:'Shortest possible run, boot the lug', sz:'main'},
+    {ids:['fuse-sw'], col:'var(--pos)', t:'Fuse OUT → switch IN', s:'Fused bus; charge positive lands here too', sz:'main'},
+    {ids:['sw-out','pig-pos'], col:'var(--pos)', t:'Switch OUT → gland → OUT +', s:'Output positive to the motor controller', sz:'main'},
+    {ids:['chg-pos'], col:'#e0675c', t:'Charge port + → fuse → switch IN', s:'Inline fuse within a few cm of the bus', sz:'charge'},
+    {ids:['chg-neg'], col:'#4a5157', t:'Charge port − → BMS P−', s:'Common-port BMS (C− on split-port)', sz:'charge'},
+    {ids:['ntc1','ntc2'], col:'#d9dde0', t:'BMS temp port → NTC 1, NTC 2', s:'Pack centre and U-turn', sz:'sense'}
+  ];
+  function renderRuns(c){
+    const Ln = BB.lengths || {};
+    $('#runs').innerHTML = RUNS.map((r,i) => {
+      const len = r.ids.reduce((s,id) => s + (Ln[id]||0), 0);
+      const size = r.sz==='main' ? c.cable.awg : r.sz==='charge' ? c.chargeAwg.awg : '24 AWG';
+      return `<li><button class="run" data-run="${i}"><span class="bar" style="background:${r.col};${r.col==='#15181b'?'box-shadow:inset 0 0 0 1px #59636a':''}"></span><span class="rt">${r.t.replace('OUT', c.conn.name)}<small>${r.s}</small></span><span class="rs">${size}${len ? `<br>≈ ${Math.round(len/10)} cm` : ''}</span></button></li>`;
+    }).join('');
+  }
+  $('#runs').addEventListener('click', e => { const b = e.target.closest('[data-run]'); if (b && BB.scene) BB.scene.highlightWires(RUNS[+b.dataset.run].ids); });
+  $('#baltbody').addEventListener('click', e => { const tr = e.target.closest('tr'); if (tr && BB.scene) BB.scene.highlightBalance(+tr.dataset.k); });
+  $('#groups').addEventListener('click', e => { const b = e.target.closest('[data-g]'); if (b && BB.scene) BB.scene.highlightGroup(+b.dataset.g); });
+  BB.refreshWiring = () => renderRuns(BB.calc);
+
+  // ----- layers -----
+  const LAYERS = [
+    ['enclosure','IP67 enclosure',true,'#7f9aa8'],['lid','Lid + gasket',false,'#7f9aa8'],['foam','EVA foam',true,'#3a4248'],
+    ['insulation','Fish paper top / bottom',false,'#b04a33'],['divider','Centre divider',true,'#b04a33'],['holders','Cell holders',true,'#2b3136'],
+    ['cells','Cells',true,'hsl(120 55% 50%)'],['stripsTop','Nickel strips · top',true,'#c9ccc8'],['stripsBottom','Nickel strips · bottom',true,'#c9ccc8'],
+    ['copper','Copper tabs + U-turn bus',true,'#c87a43'],['balance','Balance leads',true,'hsl(120 60% 55%)'],['main','Main power cables',true,'#d84a40'],
+    ['charge','Charge port + leads',true,'#e0675c'],['sense','NTC sensors + display lead',true,'#d9dde0'],['bms','BMS',true,'#24323b'],
+    ['hardware','Fuse, switch, glands, output plug',true,'#c8312b'],['load','Motor controller + motor (load)',true,'#e8c547'],['charger','Charger + charge lead',true,'#56e0c8']
+  ];
+  $('#toggles').innerHTML = LAYERS.map(([id,label,on,col]) => `<label class="tg"><input type="checkbox" id="ly-${id}" data-layer="${id}" ${on?'checked':''}><span class="sw" style="background:${col}"></span>${label}</label>`).join('');
+  $('#toggles').addEventListener('change', e => { const i = e.target; if (i.dataset.layer && BB.scene) BB.scene.setLayer(i.dataset.layer, i.checked); });
+  ['comp','tap','grp'].forEach(k => $('#lb-'+k).addEventListener('change', e => BB.scene && BB.scene.setLabels(k, e.target.checked)));
+  document.querySelectorAll('input[name="cc"]').forEach(r => r.addEventListener('change', e => BB.scene && BB.scene.setCellColor(e.target.value)));
+
+  // ----- tabs -----
+  const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
+  function selectTab(t){ tabs.forEach(x => { const on = x===t; x.setAttribute('aria-selected', on); document.getElementById(x.getAttribute('aria-controls')).hidden = !on; }); }
+  tabs.forEach((t,i) => {
+    t.addEventListener('click', () => selectTab(t));
+    t.addEventListener('keydown', e => { if (e.key==='ArrowRight'||e.key==='ArrowLeft'){ const n = tabs[(i + (e.key==='ArrowRight'?1:tabs.length-1)) % tabs.length]; n.focus(); selectTab(n); } });
+  });
+
+  // ----- inputs -----
+  function update(){ const c = compute(); BB.calc = c; render(c); BB.scene && BB.scene.onCalc(c); }
+  inp.cell.addEventListener('change', () => { const p = FORMATS[cfg.fmt].presets[inp.cell.value]; if (p){ inp.ah.value = p.ah.toFixed(1); inp.a.value = p.a; } update(); });
+  [inp.ah, inp.a].forEach(i => i.addEventListener('input', () => { inp.cell.value = 'custom'; update(); }));
+  [inp.w, inp.cut, inp.chg].forEach(i => i.addEventListener('input', update));
+  document.querySelectorAll('[data-fmt]').forEach(b => b.addEventListener('click', () => { if (cfg.fmt === b.dataset.fmt) return; cfg.fmt = b.dataset.fmt; fillPresets(); update(); }));
+  document.querySelectorAll('[data-conn]').forEach(b => b.addEventListener('click', () => { if (cfg.conn === b.dataset.conn) return; cfg.conn = b.dataset.conn; update(); }));
+  const setS = v => { v = clamp(Math.round(v), S_MIN, S_MAX); if (v !== cfg.S){ cfg.S = v; update(); } else render(BB.calc); };
+  const setP = v => { v = clamp(Math.round(v), P_MIN, P_MAX); if (v !== cfg.P){ cfg.P = v; update(); } else render(BB.calc); };
+  $('#s-dec').addEventListener('click', () => setS(cfg.S - 1)); $('#s-inc').addEventListener('click', () => setS(cfg.S + 1));
+  $('#p-dec').addEventListener('click', () => setP(cfg.P - 1)); $('#p-inc').addEventListener('click', () => setP(cfg.P + 1));
+  $('#in-s').addEventListener('change', e => setS(num(e.target.value, cfg.S)));
+  $('#in-p').addEventListener('change', e => setP(num(e.target.value, cfg.P)));
+  BB.calc = compute(); render(BB.calc);
+
+  /* ----- power simulation: CC/CV charger, load, BMS cut-offs, simple thermal model, motor speed ----- */
+  const OCV_S = [0,.05,.1,.2,.3,.4,.5,.6,.7,.8,.9,1];
+  const OCV_V = [3.0,3.3,3.45,3.55,3.62,3.68,3.74,3.82,3.9,3.98,4.08,4.2];
+  function ocvCell(x){ x = clamp(x,0,1); for (let i=1;i<OCV_S.length;i++) if (x <= OCV_S[i]){ const f = (x-OCV_S[i-1])/(OCV_S[i]-OCV_S[i-1]); return OCV_V[i-1] + f*(OCV_V[i]-OCV_V[i-1]); } return 4.2; }
+  const T_AMB = 21, G_TH = 2.5;
+  const SIM = BB.sim = {soc:0.8, temp:21, charger:false, load:true, sw:true, throttle:0.4, speed:1, rpm:0,
+    vTerm:0, ocv:0, iBat:0, iLoad:0, iChg:0, pLoad:0, cellV:0, chgPhase:'off', dsgOn:true, chgOn:true, uv:false, hotDsg:false, hotChg:false, full:false};
+  const packR = C => C.S*C.F.r/C.P + 0.004;
+  function solve(){
+    const C = BB.calc, cap = C.capAh, S = C.S, R_DIS = packR(C), R_CHG = R_DIS*2.8, vCV = S*4.2;
+    const ocvC = ocvCell(SIM.soc), ocv = S*ocvC; SIM.ocv = ocv;
+    if (SIM.temp >= 60) SIM.hotDsg = true; else if (SIM.temp < 55) SIM.hotDsg = false;
+    if (SIM.temp >= 45) SIM.hotChg = true; else if (SIM.temp < 42) SIM.hotChg = false;
+    if (!SIM.charger || SIM.soc < 0.95) SIM.full = false;
+    const chgOn = !SIM.hotChg && SIM.temp > 0;
+    let charging = SIM.charger && chgOn && !SIM.full;
+    if (SIM.uv && ocvC >= C.cut + 0.2) SIM.uv = false;
+    if (SIM.soc <= 0) SIM.uv = true;
+    const dsgOn = !SIM.uv && !SIM.hotDsg;
+    const pDemand = SIM.load && SIM.sw ? SIM.throttle*C.W : 0;
+    const p = dsgOn ? pDemand : 0;
+    let iLoad = 0, iBat = 0, iChg = 0, V = ocv;
+    let phase = !SIM.charger ? 'off' : SIM.full ? 'Full' : !chgOn ? 'Blocked' : 'CC';
+    if (charging){
+      for (let k=0;k<8;k++){
+        iLoad = p / V;
+        const cc = C.chg - iLoad, cv = (vCV - ocv)/R_CHG;
+        if (cc <= cv){ iBat = cc; phase = 'CC'; } else { iBat = cv; phase = 'CV'; }
+        V = iBat >= 0 ? ocv + iBat*R_CHG : ocv + iBat*R_DIS;
+      }
+      iChg = Math.max(0, iBat + iLoad);
+      if (phase === 'CV' && iBat < 0.05*cap && iLoad < 0.1){ SIM.full = true; phase = 'Full'; charging = false; }
+    }
+    if (!charging){
+      iChg = 0;
+      if (p > 0){ const d = ocv*ocv - 4*R_DIS*p; iLoad = d > 0 ? (ocv - Math.sqrt(d))/(2*R_DIS) : ocv/(2*R_DIS); } else iLoad = 0;
+      iBat = -iLoad; V = ocv - iLoad*R_DIS;
+    }
+    Object.assign(SIM, {vTerm:V, iBat, iLoad, iChg, pLoad:iLoad*V, cellV:V/S, chgPhase:phase, dsgOn, chgOn, pDemand});
+    if (iBat < 0 && SIM.cellV < C.cut) SIM.uv = true;
+  }
+  function step(dt){
+    let left = dt;
+    do {
+      const h = Math.min(left, 5); solve();
+      if (h > 0){
+        const C = BB.calc, Rd = packR(C), cth = C.S*C.P*C.F.g*0.9 + 1500;
+        SIM.soc = clamp(SIM.soc + SIM.iBat*h/3600/C.capAh, 0, 1);
+        const r = SIM.iBat >= 0 ? Rd*1.4 : Rd;
+        SIM.temp += (SIM.iBat*SIM.iBat*r - G_TH*(SIM.temp - T_AMB))/cth*h;
+      }
+      left -= h;
+    } while (left > 1e-9);
+    solve();
+  }
+  function timeLeft(){
+    const cap = BB.calc.capAh;
+    if (SIM.iBat < -0.3) return {h: Math.max(0, SIM.soc - 0.02)*cap/(-SIM.iBat), to:'empty'};
+    if (SIM.iBat > 0.3) return {h: (1 - SIM.soc)*cap/SIM.iBat + (SIM.soc < 0.95 ? 0.35 : 0.1), to:'full'};
+    return null;
+  }
+  function simStatus(){
+    const tl = timeLeft();
+    if (SIM.hotDsg) return ['crit', 'Over-temperature: the BMS has cut discharge until the pack cools below 55 °C.'];
+    if (SIM.uv) return ['crit', SIM.iBat > 0.3 ? `Low-voltage cutoff: discharge OFF until the cells recover · charging ${f1(SIM.iBat)} A` : SIM.charger && !SIM.chgOn ? 'Low-voltage cutoff, and too hot to charge.' : 'Low-voltage cutoff: discharge is OFF. Plug in the charger.'];
+    if (SIM.charger && SIM.hotChg) return ['warn', 'Too hot to charge (above 45 °C): the BMS has blocked charging.'];
+    if (SIM.iBat > 0.3) return ['ok', `Charging · ${SIM.chgPhase} · charger ${f1(SIM.iChg)} A${SIM.iLoad > 0.1 ? `, ${f1(SIM.iLoad)} A of it to the load` : ''} · ${hm(tl.h)} to full`];
+    if (SIM.charger && SIM.full && SIM.iLoad < 0.1) return ['ok', 'Full: charger has stopped.'];
+    if (SIM.iBat < -0.3 && SIM.iChg > 0.05) return ['warn', `Load needs more than the charger gives: charger ${f1(SIM.iChg)} A + battery ${f1(-SIM.iBat)} A · ${hm(tl.h)} to empty`];
+    if (SIM.iBat < -0.3) return [SIM.temp > 50 ? 'warn' : 'ok', `Discharging · ${f1(-SIM.iBat)} A · ${hm(tl.h)} to empty${SIM.temp > 50 ? ' · pack running hot' : ''}`];
+    if (SIM.load && !SIM.sw) return ['warn', 'Main switch OFF: the output is dead.'];
+    if (!SIM.load) return ['ok', 'Idle: load unplugged.'];
+    if (SIM.throttle === 0) return ['ok', 'Idle: throttle at 0.'];
+    return ['ok', 'Idle.'];
+  }
+  const thrIn = $('#d-thr'), socIn = $('#d-soc'); let socDrag = false;
+  function tg(id, on, txt){ const b = $(id); b.setAttribute('aria-pressed', on); b.querySelector(':scope > span').textContent = txt; }
+  function renderDock(){
+    const C = BB.calc;
+    tg('#t-charger', SIM.charger, SIM.charger ? 'Plugged in' : 'Unplugged');
+    tg('#t-load', SIM.load, SIM.load ? 'Connected' : 'Unplugged');
+    tg('#t-sw', SIM.sw, SIM.sw ? 'ON' : 'OFF');
+    $('#d-thr-o').textContent = `${Math.round(SIM.throttle*100)}% · ${f0(SIM.throttle*C.W)} W`;
+    if (!socDrag) socIn.value = (SIM.soc*100).toFixed(1);
+    $('#d-soc-o').textContent = `${Math.round(SIM.soc*100)}% · ${f0(SIM.soc*C.capAh)} Ah`;
+    const cur = SIM.iBat > 0.05 ? `<b class="chg">+${f1(SIM.iBat)} A</b>` : SIM.iBat < -0.05 ? `<b class="dis">−${f1(-SIM.iBat)} A</b>` : '<b>0.0 A</b>';
+    $('#d-read').innerHTML = `<div class="rd"><small>Pack</small><b>${f1(SIM.vTerm)} V</b></div><div class="rd"><small>Battery</small>${cur}</div><div class="rd"><small>Per cell</small><b>${SIM.cellV.toFixed(2)} V</b></div><div class="rd"><small>Temp</small><b class="${SIM.temp > 45 ? 'hot' : ''}">${f0(SIM.temp)} °C</b></div><div class="rd"><small>Motor</small><b>${f0(SIM.rpm)} rpm</b></div>`;
+    const [lvl, msg] = simStatus();
+    $('#d-bms').innerHTML = `<span class="pill ${lvl}">${lvl==='crit' ? 'Cut' : lvl==='warn' ? 'Check' : 'BMS OK'}</span><span>${msg}</span>`;
+  }
+  let toastT = 0;
+  function toast(msg){ const t = $('#toast'); if (!t) return; t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 5000); }
+  BB.toast = toast;
+  BB.simApi = {
+    set(key, val){
+      if (key === 'load' && !val && SIM.load && SIM.iLoad > 2){
+        toast(`Arc! Pulling the ${BB.calc.conn.name} apart at ${f1(SIM.iLoad)} A draws an arc that pits the contacts. Turn the main switch OFF first.`);
+        if (BB.onArc) BB.onArc(SIM.iLoad);
+      }
+      if (key === 'sw' && val && SIM.load) toast(`Switch ON. With the ${BB.calc.conn.name} plugged in first, its anti-spark resistor has already pre-charged the controller.`);
+      SIM[key] = val; step(0); renderDock();
+    }
+  };
+  $('#t-charger').addEventListener('click', () => BB.simApi.set('charger', !SIM.charger));
+  $('#t-load').addEventListener('click', () => BB.simApi.set('load', !SIM.load));
+  $('#t-sw').addEventListener('click', () => BB.simApi.set('sw', !SIM.sw));
+  thrIn.addEventListener('input', () => { SIM.throttle = thrIn.value/100; step(0); renderDock(); });
+  socIn.addEventListener('pointerdown', () => { socDrag = true; });
+  window.addEventListener('pointerup', () => { socDrag = false; });
+  socIn.addEventListener('input', () => { SIM.soc = socIn.value/100; step(0); renderDock(); });
+  document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => {
+    SIM.speed = +b.dataset.speed; document.querySelectorAll('[data-speed]').forEach(x => x.setAttribute('aria-pressed', x === b));
+  }));
+  let lastT = performance.now();
+  step(0); renderDock();
+  setInterval(() => {
+    const now = performance.now(); const dtReal = Math.min(0.5, (now - lastT)/1000); lastT = now;
+    step(dtReal*SIM.speed);
+    // motor speed follows throttle with a little spin-up / spin-down lag (about 3000 rpm at full throttle, nominal voltage)
+    const target = SIM.iLoad > 0.05 ? SIM.throttle*3000*(SIM.vTerm/BB.calc.vNom) : 0;
+    SIM.rpm += (target - SIM.rpm)*(1 - Math.exp(-dtReal/0.45));
+    if (SIM.rpm < 1 && target === 0) SIM.rpm = 0;
+    renderDock();
+  }, 100);
+
+  setTimeout(() => { if (!BB.sceneReady){ const m = document.getElementById('loadmsg'); if (m) m.textContent = 'The 3D view could not load (it needs three.js from cdn.jsdelivr.net and WebGL). The calculator, wiring tables and build notes still work.'; } }, 12000);
+})();
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+const BB = window.BB;
+const V = (x,y,z) => new THREE.Vector3(x,y,z);
+const SRGB = THREE.SRGBColorSpace;
+const ACCENT = 0x46c3cd;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const stage = document.getElementById('stage');
+
+/* ---------------- renderer / scene ---------------- */
+const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = SRGB;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.appendChild(renderer.domElement);
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.domElement.className = 'label-layer';
+stage.appendChild(labelRenderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x0b1318, 2600, 7200);
+const pmrem = new THREE.PMREMGenerator(renderer);
+
+const camera = new THREE.PerspectiveCamera(32, 1, 20, 14000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxDistance = 3600;
+controls.minDistance = 120;
+
+const hemi = new THREE.HemisphereLight(0xd6e8f2, 0x0b1216, 0.25); scene.add(hemi);
+// key light: used for shading and soft shadows only (its mirror glint is removed in the materials below); the shadow area is refitted whenever the pack changes
+const sun = new THREE.DirectionalLight(0xfff3e4, 2.4);
+const SUN_OFF = V(300, 680, 460);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, {near:50, far:2600});
+sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.5;
+scene.add(sun, sun.target);
+const fill = new THREE.DirectionalLight(0xa9cdff, 0.45); fill.position.set(-460, 260, 120); scene.add(fill);
+const rim = new THREE.DirectionalLight(0x9fd0ff, 0.7); rim.position.set(-240, 340, -760); scene.add(rim);
+// light from underneath, switched on only while the camera is below the floor
+const underLight = new THREE.DirectionalLight(0xffffff, 0); scene.add(underLight, underLight.target);
+function fitShadow(cx, cz, R){
+  sun.target.position.set(cx, 0, cz); sun.position.set(cx + SUN_OFF.x, SUN_OFF.y, cz + SUN_OFF.z);
+  Object.assign(sun.shadow.camera, {left:-R, right:R, top:R, bottom:-R}); sun.shadow.camera.updateProjectionMatrix();
+  underLight.target.position.set(cx, 40, cz); underLight.position.set(cx + 140, -900, cz + 280);
+}
+fitShadow(60, 160, 620);
+
+function noPick(o){ o.traverse(c => { c.raycast = () => {}; }); return o; }
+// Direct lights shade and cast shadows, but their mirror-like glint is taken out of every material: reflections come only from the soft lighting rig
+const NO_GLINT = shader => {
+  shader.fragmentShader = shader.fragmentShader
+    .replace(/reflectedLight\.directSpecular\s*\+\s*reflectedLight\.indirectSpecular/, 'reflectedLight.indirectSpecular')
+    .replace(/clearcoatSpecularDirect\s*\+\s*clearcoatSpecularIndirect/, 'clearcoatSpecularIndirect');
+};
+const FLOOR_Y = -18.5, FLOOR_SIZE = 24000, DOME_R = 5000;
+// one-sided floor: it takes shadows from above and vanishes when you look up from underneath
+const floorMat = new THREE.MeshStandardMaterial({color:0x2b3941, roughness:0.9, metalness:0, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1});
+floorMat.onBeforeCompile = NO_GLINT;
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(FLOOR_SIZE, FLOOR_SIZE), floorMat);
+ground.rotation.x = -Math.PI/2; ground.position.y = FLOOR_Y; ground.receiveShadow = true; scene.add(noPick(ground));
+// backdrop: a gradient dome that follows the camera, so the floor fades into a real horizon
+const domeGeo = new THREE.SphereGeometry(DOME_R, 48, 24);
+const domeCol = new Float32Array(domeGeo.attributes.position.count*3);
+domeGeo.setAttribute('color', new THREE.BufferAttribute(domeCol, 3));
+const dome = new THREE.Mesh(domeGeo, new THREE.MeshBasicMaterial({vertexColors:true, side:THREE.BackSide, fog:false, depthWrite:false}));
+dome.renderOrder = -10; dome.frustumCulled = false; dome.userData.noAO = true; scene.add(noPick(dome));
+
+const world = new THREE.Group(); scene.add(world);
+
+/* ---------------- helpers ---------------- */
+const mat = (color, o={}) => { const m = new THREE.MeshStandardMaterial(Object.assign({color, roughness:0.6, metalness:0}, o)); m.onBeforeCompile = NO_GLINT; return m; };
+const pmat = (color, o={}) => { const m = new THREE.MeshPhysicalMaterial(Object.assign({color, roughness:0.5, metalness:0}, o)); m.onBeforeCompile = NO_GLINT; return m; };
+function canvasOf(w, h, draw){ const cv = document.createElement('canvas'); cv.width = w; cv.height = h; draw(cv.getContext('2d'), w, h); return cv; }
+function texOf(cv, rx=1, ry=1, srgb=false){ const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); if (srgb) t.colorSpace = SRGB; t.anisotropy = 8; return t; }
+// brushed-metal streaks, used as a roughness map on every metal part
+const brushed = texOf(canvasOf(256, 256, (ctx,w,h) => {
+  ctx.fillStyle = '#d0d0d0'; ctx.fillRect(0,0,w,h);
+  for (let i=0;i<1600;i++){ const v = 140 + (Math.random()*115|0); ctx.globalAlpha = 0.3; ctx.fillStyle = `rgb(${v},${v},${v})`; ctx.fillRect(0, Math.random()*h, w, 0.5 + Math.random()*1.4); }
+  ctx.globalAlpha = 1;
+}), 2, 2);
+// fine mottle for foam and fish paper
+const mottle = texOf(canvasOf(256, 256, (ctx,w,h) => {
+  ctx.fillStyle = '#e6e6e6'; ctx.fillRect(0,0,w,h);
+  for (let i=0;i<5000;i++){ const v = 170 + (Math.random()*85|0); ctx.fillStyle = `rgb(${v},${v},${v})`; ctx.fillRect(Math.random()*w, Math.random()*h, 1 + Math.random()*2, 1 + Math.random()*2); }
+}), 3, 3, true);
+const nickel = () => mat(0xcdd0cc, {metalness:0.85, roughness:0.5, roughnessMap:brushed});
+const copper = () => mat(0xc8743e, {metalness:1.0, roughness:0.34, roughnessMap:brushed});
+const steel = () => mat(0xbcc3c9, {metalness:0.95, roughness:0.32, roughnessMap:brushed});
+const satin = color => mat(color, {metalness:0.5, roughness:0.55, roughnessMap:brushed});   // broad flat metal faces: keeps a steady shade from every angle
+const anod = color => mat(color, {metalness:0.4, roughness:0.55, roughnessMap:brushed});            // anodised aluminium
+const plastic = (color, o={}) => pmat(color, Object.assign({roughness:0.45, clearcoat:0.35, clearcoatRoughness:0.35}, o));
+function rbox(w,h,d,r,material,x,y,z,parent){
+  const rr = Math.max(0.05, Math.min(r, w/2-0.05, h/2-0.05, d/2-0.05));
+  const m = shade(new THREE.Mesh(new RoundedBoxGeometry(w,h,d,3,rr), material)); m.position.set(x,y,z); parent && parent.add(m); return m;
+}
+function shade(m){ m.castShadow = true; m.receiveShadow = true; return m; }
+function box(w,h,d,material,x,y,z,parent){ const m = shade(new THREE.Mesh(new THREE.BoxGeometry(w,h,d), material)); m.position.set(x,y,z); parent && parent.add(m); return m; }
+function cyl(axis,r,len,material,x,y,z,parent,seg=40,r2){ const g = new THREE.CylinderGeometry(r2 ?? r, r, len, seg); if (axis==='z') g.rotateX(Math.PI/2); if (axis==='x') g.rotateZ(Math.PI/2); const m = shade(new THREE.Mesh(g, material)); m.position.set(x,y,z); parent && parent.add(m); return m; }
+function canvasTex(w,h,draw){ const cv = document.createElement('canvas'); cv.width=w; cv.height=h; const ctx = cv.getContext('2d'); draw(ctx,w,h); const tx = new THREE.CanvasTexture(cv); tx.colorSpace = SRGB; tx.anisotropy = 4; return {tx, cv, ctx, redraw(fn){ fn(ctx,w,h); tx.needsUpdate = true; }}; }
+function tag(obj, info){ obj.userData.info = info; return obj; }
+const f1 = v => v.toFixed(1), f0 = v => Math.round(v).toString();
+function disposeTree(o){ o.traverse(n => { if (n.geometry && !n.geometry.userData.keep) n.geometry.dispose(); if (n.material && !n.material.userData.keep) n.material.dispose(); }); }
+function clearGroup(g){ for (const c of [...g.children]){ g.remove(c); disposeTree(c); } }
+
+/* ---------------- soft glows (drawn as small halos, so nothing else on screen flares) ---------------- */
+const glowTex = radialTex('rgba(255,255,255,0.95)', 'rgba(255,255,255,0.3)');
+function halo(parent, x, y, z, size){
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex, color:0xffffff, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false, toneMapped:false}));
+  s.position.set(x, y, z); s.scale.setScalar(size); s.visible = false; s.raycast = () => {}; parent.add(s); return s;
+}
+
+/* ---------------- floor textures ---------------- */
+// Seamless floor textures drawn on a 1024 px canvas (1 px is about 1 mm)
+function drawPlanks(ctx, w, h, o){
+  let seed = o.seed;
+  const rnd = () => { seed = (seed*16807) % 2147483647; return (seed & 0xffff)/0x10000; };
+  const rowH = h/o.rows;
+  ctx.fillStyle = o.gap; ctx.fillRect(0, 0, w, h);
+  for (let r=0; r<o.rows; r++){
+    const y0 = r*rowH + o.gapW/2, ph = rowH - o.gapW, off = rnd()*w;
+    let cur = 0;
+    while (cur < w){
+      let len = o.minLen + rnd()*(o.maxLen - o.minLen); if (w - cur - len < o.minLen*0.6) len = w - cur;
+      const tone = o.tones[(rnd()*o.tones.length)|0], x0 = (off + cur) % w;
+      for (const dx of [0, -w]){
+        const x = x0 + dx; if (x + len < 0 || x > w) continue;
+        ctx.save(); ctx.beginPath(); ctx.rect(x + o.butt/2, y0, len - o.butt, ph); ctx.clip();
+        ctx.fillStyle = tone; ctx.fillRect(x, y0, len, ph);
+        // long soft colour bands, then fine grain lines
+        let s2 = (r*7919 + Math.round(cur))*31 + 17; const rn = () => { s2 = (s2*48271) % 2147483647; return (s2 & 0xffff)/0x10000; };
+        for (let i=0;i<o.bands;i++){ ctx.fillStyle = rn() < 0.5 ? `rgba(255,236,200,${0.03+rn()*0.06})` : `rgba(60,30,8,${0.03+rn()*0.07})`; const by = y0 + rn()*ph; ctx.fillRect(x, by, len, 2 + rn()*ph*0.22); }
+        for (let i=0;i<o.grain;i++){ const gy = y0 + rn()*ph, a = 0.05 + rn()*0.16; ctx.strokeStyle = rn() < 0.75 ? `rgba(58,30,10,${a})` : `rgba(255,232,190,${a*0.8})`; ctx.lineWidth = 0.6 + rn()*0.9;
+          ctx.beginPath(); const sx = x + rn()*len*0.3, ex = sx + len*(0.4 + rn()*0.7), bend = (rn()-0.5)*5; ctx.moveTo(sx, gy); ctx.bezierCurveTo(sx + (ex-sx)*0.33, gy + bend, sx + (ex-sx)*0.66, gy - bend, ex, gy + (rn()-0.5)*2); ctx.stroke(); }
+        // soft edge shading so each plank reads as a separate board
+        const g = ctx.createLinearGradient(0, y0, 0, y0 + ph); g.addColorStop(0, 'rgba(0,0,0,0.16)'); g.addColorStop(0.08, 'rgba(0,0,0,0)'); g.addColorStop(0.92, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.2)');
+        ctx.fillStyle = g; ctx.fillRect(x, y0, len, ph);
+        ctx.restore();
+      }
+      cur += len;
+    }
+  }
+}
+const FLOOR_TEX = {
+  wood: {seed:9173, rows:8,  gap:'#3b2614', gapW:2,  butt:2, minLen:420, maxLen:820, bands:7, grain:46, tones:['#b78a58','#ab7d4d','#c0935f','#a37748','#b48452','#bb8e5c']},
+  teak: {seed:4421, rows:16, gap:'#161310', gapW:9,  butt:6, minLen:520, maxLen:1000, bands:4, grain:20, tones:['#b98c5a','#b08352','#c19463','#a97c4d','#b6885a']}
+};
+
+/* ---------------- revolved shapes (cell bodies with rounded shoulders) ---------------- */
+// Revolved profile with outward-facing triangles and smooth normals. prof: [[radius, y], ...] from bottom to top.
+function latheArrays(prof, seg){
+  const n = prof.length, pos = [], nor = [], uv = [], idx = [], y0 = prof[0][1], y1 = prof[n-1][1];
+  const pn = prof.map((p, j) => { let nx = 0, ny = 0;
+    for (const [a, b] of [[j-1, j], [j, j+1]]){ if (a < 0 || b >= n) continue; const dr = prof[b][0]-prof[a][0], dy = prof[b][1]-prof[a][1], l = Math.hypot(dr, dy) || 1; nx += dy/l; ny -= dr/l; }
+    const l = Math.hypot(nx, ny) || 1; return [nx/l, ny/l]; });
+  for (let i=0;i<=seg;i++){ const th = i/seg*Math.PI*2, c = Math.cos(th), s = Math.sin(th);
+    for (let j=0;j<n;j++){ pos.push(prof[j][0]*c, prof[j][1], prof[j][0]*s); nor.push(pn[j][0]*c, pn[j][1], pn[j][0]*s); uv.push(1 - i/seg, (prof[j][1]-y0)/(y1-y0)); } }
+  for (let i=0;i<seg;i++) for (let j=0;j<n-1;j++){ const a = i*n+j, b = (i+1)*n+j, c = (i+1)*n+j+1, d = i*n+j+1; idx.push(a, d, b, b, d, c); }
+  return {pos, nor, uv, idx};
+}
+function cellProfile(R, hh){
+  const rr = 1.7, p = [[R-2.4, -hh]];
+  for (let i=0;i<=6;i++){ const a = -Math.PI/2 + i/6*Math.PI/2; p.push([R-rr + Math.cos(a)*rr, -hh+rr + Math.sin(a)*rr]); }
+  for (let i=0;i<=6;i++){ const a = i/6*Math.PI/2; p.push([R-rr + Math.cos(a)*rr, hh-rr + Math.sin(a)*rr]); }
+  p.push([R-2.4, hh]); return p;
+}
+
+/* ---------------- scenes: backdrop, floor, lighting and reflections ---------------- */
+// Sky and floor colours are the colours wanted on screen. Reflections come from a soft lighting rig (dome + softboxes) of modest brightness, so nothing mirrors as a glaring hot spot.
+const SCENES = [
+  {id:'studio', name:'Studio', exposure:1.05,
+   sky:{zenith:'#0c1317', horizon:'#1d2b34', nadir:'#080c0f'},
+   floor:{color:'#2b3941', rough:0.9}, grid:{c1:0x3d5d6b, c2:0x24363e, o:0.4},
+   sun:[0xfff3e4, 2.4], fill:[0xa9cdff, 0.45], rim:[0x9fd0ff, 0.7], hemi:[0xd6e8f2, 0x0b1216, 0.25], under:1.8,
+   env:{top:[0.42,0.45,0.48], mid:[0.2,0.22,0.24], bot:[0.15,0.16,0.17], tint:[1,1,1], key:2.4, side:1.8, rim:2.0, bounce:0.5}},
+  {id:'day', name:'Daylight', exposure:0.98, light:true,
+   sky:{zenith:'#f1f4f6', horizon:'#e2e7ea', nadir:'#cfd5d9'},
+   floor:{color:'#c6ccd0', rough:0.92}, grid:{c1:0x9aa6ad, c2:0xb4bec4, o:0.55},
+   sun:[0xffffff, 2.2], fill:[0xdde9ff, 0.4], rim:[0xffffff, 0.4], hemi:[0xffffff, 0xcfd5d9, 0.5], under:1.4,
+   env:{top:[1.0,1.02,1.05], mid:[0.7,0.72,0.75], bot:[0.3,0.3,0.3], tint:[1,1,1], key:2.0, side:1.5, rim:1.5, bounce:1.1}},
+  {id:'bench', name:'Workbench', exposure:1.05,
+   sky:{zenith:'#120f0d', horizon:'#2b231d', nadir:'#0b0908'},
+   floor:{color:'#bdbdbd', rough:0.6, tex:'wood'}, grid:null,
+   sun:[0xffe6c4, 2.5], fill:[0xbcd2ff, 0.35], rim:[0xffd9b0, 0.6], hemi:[0xffeedd, 0x1a120c, 0.25], under:1.8,
+   env:{top:[0.42,0.38,0.33], mid:[0.21,0.18,0.15], bot:[0.16,0.13,0.11], tint:[1,0.93,0.82], key:2.4, side:1.6, rim:1.6, bounce:0.6}},
+  {id:'deck', name:'Boat deck', exposure:0.98,
+   sky:{zenith:'#4a8fd6', horizon:'#d3e8f6', nadir:'#a9cde4'},
+   floor:{color:'#c4c4c4', rough:0.72, tex:'teak'}, grid:null,
+   sun:[0xfff6e6, 2.7], fill:[0xbfdcff, 0.5], rim:[0xffffff, 0.5], hemi:[0xcfe6ff, 0x8a6a48, 0.5], under:1.4,
+   env:{top:[0.75,0.95,1.3], mid:[0.85,0.95,1.05], bot:[0.4,0.32,0.24], tint:[1,0.98,0.94], key:2.0, side:1.2, rim:1.2, bounce:1.0}},
+  {id:'blueprint', name:'Blueprint', exposure:1.0,
+   sky:{zenith:'#0b2a50', horizon:'#134274', nadir:'#0a2444'},
+   floor:{color:'#17487a', rough:0.95}, grid:{c1:0xd6e6ff, c2:0x7fa9d8, o:0.5},
+   sun:[0xffffff, 2.2], fill:[0xcfe0ff, 0.5], rim:[0xffffff, 0.6], hemi:[0xffffff, 0x0a2444, 0.3], under:1.6,
+   env:{top:[0.5,0.52,0.55], mid:[0.28,0.3,0.33], bot:[0.16,0.18,0.22], tint:[1,1,1], key:2.3, side:1.7, rim:1.8, bounce:0.6}}
+];
+// The picture is tone-mapped on its way to the screen. preTone finds the scene value that comes out as the wanted screen colour, so backdrops look the same at every quality level.
+function acesFit(v){ return (v*(v + 0.0245786) - 0.000090537)/(v*(0.983729*v + 0.4329510) + 0.238081); }
+function preTone(c){
+  const k = renderer.toneMappingExposure/0.6, out = new THREE.Color();
+  for (const ch of ['r','g','b']){
+    const d = Math.min(0.96, Math.max(0, c[ch])); let lo = 0, hi = 60;
+    for (let i=0;i<40;i++){ const m = (lo + hi)/2; if (acesFit(m) < d) lo = m; else hi = m; }
+    out[ch] = lo/k;
+  }
+  return out;
+}
+let envRT = null;
+function buildEnv(e){
+  const es = new THREE.Scene(), RAD = 60;
+  const sph = new THREE.SphereGeometry(RAD, 48, 24), pos = sph.attributes.position, col = new Float32Array(pos.count*3);
+  const top = new THREE.Color(...e.top), mid = new THREE.Color(...e.mid), bot = new THREE.Color(...e.bot), c = new THREE.Color();
+  for (let i=0;i<pos.count;i++){
+    const y = Math.max(-1, Math.min(1, pos.getY(i)/RAD));
+    if (y >= 0) c.copy(mid).lerp(top, Math.pow(y, 0.7)); else c.copy(mid).lerp(bot, Math.pow(-y, 0.5));
+    col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
+  }
+  sph.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  es.add(new THREE.Mesh(sph, new THREE.MeshBasicMaterial({vertexColors:true, side:THREE.BackSide})));
+  const panel = (w, h, k, x, y, z) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({color:new THREE.Color(k*e.tint[0], k*e.tint[1], k*e.tint[2]), side:THREE.DoubleSide}));
+    m.position.set(x, y, z); m.lookAt(0, 0, 0); es.add(m);
+  };
+  panel(46, 34, e.key, 6, 44, 10);          // overhead softbox
+  panel(18, 44, e.side, -46, 14, 22);       // left strip
+  panel(18, 44, e.side*0.8, 46, 12, -8);    // right strip
+  panel(60, 10, e.rim, 0, 26, -50);         // rear rim strip
+  panel(90, 90, e.bounce, 0, -40, 0);       // light bouncing up off the floor
+  const rt = pmrem.fromScene(es, 0.03, 0.1, 200);
+  es.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+  return rt;
+}
+function paintDome(sky){
+  const pos = domeGeo.attributes.position, c = new THREE.Color();
+  const z = preTone(new THREE.Color(sky.zenith)), h = preTone(new THREE.Color(sky.horizon)), n = preTone(new THREE.Color(sky.nadir));
+  for (let i=0;i<pos.count;i++){
+    const y = Math.max(-1, Math.min(1, pos.getY(i)/DOME_R));
+    if (y >= 0) c.copy(h).lerp(z, Math.pow(y, 0.55)); else c.copy(h).lerp(n, Math.pow(-y, 0.4));
+    domeCol[i*3] = c.r; domeCol[i*3+1] = c.g; domeCol[i*3+2] = c.b;
+  }
+  domeGeo.attributes.color.needsUpdate = true;
+}
+const floorTexCache = {};
+function floorTexture(kind){
+  if (!floorTexCache[kind]){
+    const t = texOf(canvasOf(1024, 1024, (ctx, w, h) => drawPlanks(ctx, w, h, FLOOR_TEX[kind])), FLOOR_SIZE/1024, FLOOR_SIZE/1024, true);
+    try { t.anisotropy = renderer.capabilities.getMaxAnisotropy(); } catch (e) {}
+    floorTexCache[kind] = t;
+  }
+  return floorTexCache[kind];
+}
+let SC = SCENES[0], sceneIdx = 0, grid = null, underView = null, foamPad = null, insBotMat = null;
+const selScene = document.getElementById('scene');
+if (selScene) for (const sc of SCENES){ const o = document.createElement('option'); o.value = sc.id; o.textContent = sc.name; selScene.appendChild(o); }
+// Looking up from under the floor: the floor is one-sided so it disappears by itself; the grid and the foam pad under the pack step aside and a light comes on from below
+function setUnder(u){
+  if (u === underView) return; underView = u;
+  if (grid) grid.visible = !u;
+  if (foamPad) foamPad.visible = !u;
+  if (insBotMat) insBotMat.opacity = u ? 0.2 : 0.78;
+  underLight.intensity = u ? SC.under : 0;
+}
+function applyScene(i, save){
+  sceneIdx = ((i % SCENES.length) + SCENES.length) % SCENES.length; SC = SCENES[sceneIdx];
+  renderer.toneMappingExposure = SC.exposure;
+  try { const rt = buildEnv(SC.env), old = envRT; envRT = rt; scene.environment = rt.texture; if (old) old.dispose(); }
+  catch (e) { console.warn('Lighting rig failed; using the default room', e); if (!scene.environment) scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.035).texture; }
+  try {
+    paintDome(SC.sky);
+    scene.fog.color.copy(preTone(new THREE.Color(SC.sky.horizon))); renderer.setClearColor(scene.fog.color);
+    floorMat.color.set(SC.floor.color); floorMat.roughness = SC.floor.rough; floorMat.map = SC.floor.tex ? floorTexture(SC.floor.tex) : null; floorMat.needsUpdate = true;
+    if (grid){ scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); grid = null; }
+    if (SC.grid){
+      grid = new THREE.GridHelper(2800, 56, SC.grid.c1, SC.grid.c2); grid.position.y = FLOOR_Y + 0.1;
+      grid.material.transparent = true; grid.material.opacity = SC.grid.o; grid.material.depthWrite = false; scene.add(noPick(grid));
+    }
+    sun.color.setHex(SC.sun[0]); sun.intensity = SC.sun[1];
+    fill.color.setHex(SC.fill[0]); fill.intensity = SC.fill[1];
+    rim.color.setHex(SC.rim[0]); rim.intensity = SC.rim[1];
+    hemi.color.setHex(SC.hemi[0]); hemi.groundColor.setHex(SC.hemi[1]); hemi.intensity = SC.hemi[2];
+    styleFx();
+  } catch (e) { console.warn('Scene change failed part-way', e); }
+  const u = underView; underView = null; setUnder(!!u);
+  if (selScene) selScene.value = SC.id;
+  if (save){ try { localStorage.setItem('bb-scene', SC.id); } catch (e) {} }
+}
+if (selScene) selScene.addEventListener('change', () => { const k = SCENES.findIndex(x => x.id === selScene.value); if (k >= 0) applyScene(k, true); });
+
+/* ---------------- layers / explode containers ---------------- */
+const LAYERS = {};
+const inLayer = (name, ...objs) => { (LAYERS[name] ||= []).push(...objs); };
+const X = {}; const EXP = {top:45, bot:-45, holderTop:18, holderBot:-18, insulTop:85, insulBot:-80, lid:230};
+for (const k of Object.keys(EXP)){ X[k] = new THREE.Group(); world.add(X[k]); }
+function layerGroup(name, parent){ const g = new THREE.Group(); g.name = name; inLayer(name, g); (parent || world).add(g); return g; }
+const gEnc = layerGroup('enclosure'), gLid = layerGroup('lid', X.lid), gFoam = layerGroup('foam');
+const gInsTop = layerGroup('insulation', X.insulTop), gInsBot = layerGroup('insulation', X.insulBot);
+const gDivider = layerGroup('divider'), gHolTop = layerGroup('holders', X.holderTop), gHolBot = layerGroup('holders', X.holderBot);
+const gCells = layerGroup('cells'), gStripsTop = layerGroup('stripsTop', X.top), gStripsBot = layerGroup('stripsBottom', X.bot);
+const gCuTop = layerGroup('copper', X.top), gCuBot = layerGroup('copper', X.bot);
+const gBalance = layerGroup('balance'), gMain = layerGroup('main'), gCharge = layerGroup('charge');
+const gSense = layerGroup('sense'), gSenseTop = layerGroup('sense', X.top), gBMS = layerGroup('bms'), gHW = layerGroup('hardware');
+const gLoad = layerGroup('load'), gCharger = layerGroup('charger');
+const gLoadMov = new THREE.Group(); gLoad.add(gLoadMov);
+const gChgMov = new THREE.Group(); gCharger.add(gChgMov);
+const gLblTop = new THREE.Group(); X.top.add(gLblTop);
+const gLblBot = new THREE.Group(); X.bot.add(gLblBot);
+const PACK_GROUPS = [gEnc, gLid, gFoam, gInsTop, gInsBot, gDivider, gHolTop, gHolBot, gCells, gStripsTop, gStripsBot, gCuTop, gCuBot, gSenseTop, gLblTop, gLblBot];
+
+/* ---------------- labels ---------------- */
+let labels = []; const labelOn = {comp:true, tap:true, grp:true};
+function label(text, cls, pos, parent, cat, owner, pack){
+  const el = document.createElement('div'); el.className = 'lbl ' + cls; el.textContent = text;
+  const o = new CSS2DObject(el); o.position.copy(pos); parent.add(o);
+  labels.push({o, cat, owner: owner || parent, pack: !!pack}); return o;
+}
+function clearPackLabels(){ labels.filter(l => l.pack).forEach(l => l.o.removeFromParent()); labels = labels.filter(l => !l.pack); }
+function chainVisible(o){ while (o){ if (!o.visible) return false; o = o.parent; } return true; }
+
+/* ---------------- pack layout (rebuilt whenever S, P or cell size change) ---------------- */
+let G = null;
+const off = (side, t) => side === 'top' ? EXP.top*t : EXP.bot*t;
+const OT = t => EXP.top*t, OB = t => EXP.bot*t;
+function layout(){
+  const C = BB.calc, F = BB.FORMATS[C.fmt];
+  const S = C.S, P = C.P, p = F.pitch, R = F.d/2, H = F.h, T = H + 1;
+  const r = P <= 3 ? 1 : 2, w = Math.ceil(P/r), a = Math.ceil(S/2), bN = S - a, rows = a*r, DIV = 2;
+  const colX = c => (c - (2*w - 1)/2)*p + (c < w ? -DIV : DIV);
+  const FRONT = 157.55, row0 = FRONT - 0.75 - p/2;
+  const rowZ = rr => row0 - rr*p;
+  const cells = [];
+  for (let rr=0; rr<rows; rr++) for (let c=0; c<2*w; c++){
+    const slot = Math.floor(rr/r), sub = rr % r;
+    let k, idx;
+    if (c < w){ k = slot + 1; idx = sub*w + c; } else { k = 2*a - slot; idx = sub*w + c - w; }
+    if (k > S || idx >= P) continue;
+    cells.push({r:rr, c, k, x:colX(c), z:rowZ(rr), up:k%2===1});
+  }
+  const gc = [null];
+  for (let k=1;k<=S;k++){ const cs = cells.filter(c => c.k===k); gc.push({x:cs.reduce((s,c)=>s+c.x,0)/cs.length, z:cs.reduce((s,c)=>s+c.z,0)/cs.length}); }
+  const Zr = rowZ(rows-1) - p/2 - 0.75, zc = (FRONT + Zr)/2;
+  const holderHalf = colX(2*w-1) + p/2 + 0.75, cxA = (colX(0) + colX(w-1))/2;
+  const lanesMax = Math.max(a+1, S-a);
+  const laneDY = Math.min(3.4, (T - 34)/Math.max(1, lanesMax-1));
+  const x1 = Math.max(136, Math.ceil(holderHalf + 1.3 + 2*(lanesMax-1) + 8.5));
+  const BX = {x0:-x1, x1, y0:-14, y1:150, z0:Math.floor(Zr - 12.45), z1:280, t:4};
+  const pinDX = Math.min(3.4, 48/S);
+  const sideS = S%2===0 ? 'bottom' : 'top', busSide = a%2===1 ? 'top' : 'bottom';
+  const nodeDefs = [];
+  for (let n=0;n<=S;n++){
+    let groups, side;
+    if (n===0){ groups=[1]; side='bottom'; } else if (n===S){ groups=[S]; side=sideS; } else { groups=[n,n+1]; side = n%2===1 ? 'top' : 'bottom'; }
+    const nc = cells.filter(c => groups.includes(c.k));
+    const rws = [...new Set(nc.map(c=>c.r))].sort((x,y)=>x-y), cls = [...new Set(nc.map(c=>c.c))].sort((x,y)=>x-y);
+    let tap;
+    if (n===0) tap = {x:colX(0), z:gc[1].z};
+    else if (n===S) tap = {x:colX(2*w-1), z:gc[S].z};
+    else if (n===a) tap = {x:colX(0), z:gc[a].z};
+    else if (n<a) tap = {x:colX(0), z:(gc[n].z + gc[n+1].z)/2};
+    else tap = {x:colX(2*w-1), z:(gc[n].z + gc[n+1].z)/2};
+    nodeDefs.push({n, groups, side, cells:nc, rows:rws, cols:cls, tap, colA:n <= a});
+  }
+  const cc = Math.max(0, Math.floor(w/2) - 1);
+  const ntc1x = w >= 2 ? (colX(cc) + colX(cc+1))/2 : colX(0) + p/2 - 1;
+  const mid = Math.max(0, Math.floor(rows/2) - 1);
+  const ntc1z = rows >= 2 ? (rowZ(mid) + rowZ(mid+1))/2 : rowZ(0);
+  return {S,P,fmt:C.fmt,F,p,R,H,T,r,w,a,bN,rows,colX,rowZ,cells,gc,FRONT,Zr,zc,holderHalf,cxA,lanesMax,laneDY,BX,OX:x1-136,pinDX,
+    sideS,busSide,nodeDefs,ntc1x,ntc1z,ntc2x:Math.max(colX(0), -30),ntc2z:gc[a].z,xN:gc[1].x,xP:gc[S].x};
+}
+const pinX = k => -40 + (k - G.S/2)*G.pinDX;
+const groupColor = k => new THREE.Color().setHSL((215 - (k-1)/Math.max(1,G.S-1)*190)/360, 0.55, 0.5, SRGB);
+const nodeColor = k => new THREE.Color().setHSL((215 - k/G.S*190)/360, 0.6, 0.55, SRGB);
+
+/* ---------------- enclosure, foam, insulation, holders ---------------- */
+const wallMat = mat(0x93b8ca, {transparent:true, opacity:0.11, roughness:0.3, envMapIntensity:0.5, depthWrite:false, side:THREE.DoubleSide}); wallMat.userData.keep = true;
+const lidMat = mat(0x93b8ca, {transparent:true, opacity:0.17, roughness:0.3, envMapIntensity:0.5, depthWrite:false, side:THREE.DoubleSide}); lidMat.userData.keep = true;
+const edgeMat = new THREE.LineBasicMaterial({color:0x7b98a6, transparent:true, opacity:0.6}); edgeMat.userData.keep = true;
+function wall(x0,x1,y0,y1,z0,z1,parent,m=wallMat){
+  const geo = new THREE.BoxGeometry(x1-x0, y1-y0, z1-z0);
+  const mesh = new THREE.Mesh(geo, m); mesh.position.set((x0+x1)/2,(y0+y1)/2,(z0+z1)/2); mesh.renderOrder = 2; noPick(mesh);
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat); e.position.copy(mesh.position); noPick(e);
+  parent.add(mesh, e); return mesh;
+}
+function buildEnclosure(){
+  const {x0,x1,y0,y1,z0,z1,t} = G.BX;
+  wall(x0-t,x1+t,y0-t,y0,z0-t,z1+t,gEnc); wall(x0-t,x0,y0,y1,z0-t,z1+t,gEnc); wall(x1,x1+t,y0,y1,z0-t,z1+t,gEnc);
+  wall(x0,x1,y0,y1,z0-t,z0,gEnc); wall(x0,x1,y0,y1,z1,z1+t,gEnc);
+  const fl = anod(0x56656e);
+  for (const s of [-1,1]){
+    box(20,4,z1-z0+2*t,fl, s*(x1+t+10), y0-t+2, (z0+z1)/2, gEnc);
+    for (const zz of [z0+30, z1-30]) cyl('y',4,4.4,mat(0x0b1013),s*(x1+t+10),y0-t+2,zz,gEnc,16);
+  }
+  wall(x0-t,x1+t,y1,y1+6,z0-t,z1+t,gLid,lidMat);
+  const gk = mat(0xe07a2f, {roughness:0.8});
+  box(x1-x0+2*t+0.8,3,t+0.8,gk,0,y1-1.1,z0-t/2,gLid); box(x1-x0+2*t+0.8,3,t+0.8,gk,0,y1-1.1,z1+t/2,gLid);
+  box(t+0.8,3,z1-z0-0.8,gk,x0-t/2,y1-1.1,(z0+z1)/2,gLid); box(t+0.8,3,z1-z0-0.8,gk,x1+t/2,y1-1.1,(z0+z1)/2,gLid);
+  for (const xx of [x0+2, x1-2]) for (const zz of [z0+10, (z0+z1)/2, z1-10]) cyl('y',4,3,steel(),xx,y1+7.5,zz,gLid,12);
+  label('IP67 enclosure', 'comp', V(x1-10, y1+14, z0+10), gEnc, 'comp', gEnc, true);
+  // foam
+  const fm = mat(0x3a4247, {roughness:1, map:mottle, transparent:true, opacity:0.6, depthWrite:false});
+  const zf0 = z0, zf1 = G.FRONT + 0.5, fl2 = zf1 - zf0;
+  box(6,124,fl2,fm,x0+3,y0+62,(zf0+zf1)/2,gFoam); box(6,124,fl2,fm,x1-3,y0+62,(zf0+zf1)/2,gFoam);
+  box(x1-x0-12,124,6,fm,0,y0+62,z0+3,gFoam); foamPad = box(x1-x0-12,11.4,fl2,fm,0,y0+5.7,(zf0+zf1)/2,gFoam);
+  gFoam.traverse(o => { if (o.isMesh){ o.castShadow = false; o.renderOrder = 1; } });
+  // insulation, divider, holders
+  const {T, p, rows, holderHalf, zc, cxA, w} = G;
+  const fp = mat(0xb04a33, {roughness:0.9, map:mottle, transparent:true, opacity:0.78});
+  insBotMat = mat(0xb04a33, {roughness:0.9, map:mottle, transparent:true, opacity:0.78});
+  box(2*holderHalf+1,1,rows*p+4,fp,0,T+3.5,zc,gInsTop); box(2*holderHalf+1,1,rows*p+4,insBotMat,0,-2.1,zc,gInsBot);
+  box(2, T-1.5, rows*p+3, mat(0xb04a33, {roughness:0.85, map:mottle}), 0, (T+0.5)/2, zc, gDivider);
+  label('Divider', 'comp', V(0, 40, G.Zr-12), gDivider, 'comp', gDivider, true);
+  const hm = mat(0x2a3035, {roughness:0.72});
+  holderMats = [hm];
+  for (const sx of [cxA, -cxA]){ rbox(w*p+1.5, 6.7, rows*p+1.5, 2, hm, sx, T-4.65, zc, gHolTop); rbox(w*p+1.5, 6.7, rows*p+1.5, 2, hm, sx, 5.15, zc, gHolBot); }   // cell ends stand 0.8 mm proud of each holder
+}
+tag(gEnc, () => { const {x0,x1,y0,y1,z0,z1,t} = G.BX; return {kicker:'Enclosure', title:'IP67 battery box', rows:[['Outside', `≈ ${f0(x1-x0+2*t+40)} × ${f0(y1-y0+2*t+6)} × ${f0(z1-z0+2*t)} mm (with flanges)`],['Inside', `${f0(x1-x0)} × ${f0(y1-y0)} × ${f0(z1-z0)} mm`],['Material','Aluminium or UV-stable polycarbonate'],['Fixing','Side flanges, strapped to a stringer']], note:'Mount above bilge water, out of direct sun, with a little airflow around it. Every penetration goes through a gland. The box resizes to fit the pack when you change S, P or cell size.'}; });
+tag(gLid, () => ({kicker:'Enclosure', title:'Lid with gasket', rows:[['Seal','Closed-cell gasket, full perimeter'],['Fasteners','Stainless, evenly torqued']], note:'Keep the gasket clean and unbroken; one pinched spot lets water wick in over a season.'}));
+tag(gFoam, () => ({kicker:'Packing', title:'Closed-cell EVA foam', rows:[['Thickness','6 mm walls · 11 mm floor'],['Type','Closed cell (won\'t soak up water)']], note:'Holds the pack still against slamming and vibration and keeps strip edges off the box.'}));
+const insInfo = () => ({kicker:'Insulation', title:'Fish paper sheets', rows:[['Where','Over the top strips and under the bottom strips'],['Material','0.5 mm fish paper or 1 mm FR4']], note:'Stops a strip edge, a bolt or a sharp corner from shorting through to the box or lid. Run it 5 mm past the strips on every side.'});
+tag(gInsTop, insInfo); tag(gInsBot, insInfo);
+tag(gDivider, () => ({kicker:'Insulation', title:'Centre divider', rows:[['Between', `Column A (G1–G${G.a}) and column B (G${G.a+1}–G${G.S})`],['Worst-case difference', `${G.S-1} series steps · ≈ ${f0(BB.calc.vFull*(G.S-1)/G.S)} V`],['Material','≥ 0.5 mm fish paper or 1 mm FR4']], note:'Cells either side of this sheet are many groups apart, so a scuffed wrap here is a real short. Keep the sheet taller than the holders.'}));
+const holInfo = () => ({kicker:'Mechanical', title:`${G.fmt} cell holders`, rows:[['Pitch', `${G.p} mm`],['Per column', `${G.rows} rows × ${G.w} cells`]], note:'Holders keep a gap between cans for airflow and stop a worn wrap rubbing on its neighbour. Glue the two columns to each other through the divider.'});
+tag(gHolTop, holInfo); tag(gHolBot, holInfo);
+
+/* ---------------- cells ---------------- */
+let cells = [], bodyMesh = null, bodyMat = null, holderMats = [];
+let cellColorMode = 'group', hlGroup = 0;
+// printed heat-shrink wrap (white base so the group colour tints it; text follows the chosen cell)
+const wrapCv = document.createElement('canvas'); wrapCv.width = 512; wrapCv.height = 512;
+const wrapTex = new THREE.CanvasTexture(wrapCv); wrapTex.colorSpace = SRGB; wrapTex.anisotropy = 8;
+let wrapKey = '';
+function drawWrap(){
+  const C = BB.calc, key = `${C.fmt}|${C.ah}`; if (key === wrapKey) return; wrapKey = key;
+  const ctx = wrapCv.getContext('2d'), w = 512, h = 512;
+  ctx.fillStyle = '#f3f3f3'; ctx.fillRect(0,0,w,h);
+  ctx.fillStyle = '#bdbdbd'; ctx.fillRect(0,0,w,h*0.035); ctx.fillRect(0,h*0.965,w,h*0.035);
+  ctx.fillStyle = '#d9d9d9'; ctx.fillRect(0,h*0.4,w,h*0.2);
+  ctx.fillStyle = '#e7e7e7'; ctx.fillRect(0,h*0.12,w,h*0.025);
+  ctx.fillStyle = '#5c5c5c'; ctx.font = '600 21px "IBM Plex Mono", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const txt = `INR${C.fmt}  3.6V  ${Math.round(C.ah*1000)}mAh`;
+  for (const x of [w*0.25, w*0.75]){ ctx.fillText(txt, x, h*0.5); }
+  ctx.font = '700 30px "IBM Plex Mono", monospace'; ctx.fillStyle = '#6d6d6d';
+  for (const x of [w*0.125, w*0.375, w*0.625, w*0.875]) ctx.fillText('+', x, h*0.075);
+  wrapTex.needsUpdate = true;
+}
+if (document.fonts) document.fonts.ready.then(() => { wrapKey = ''; if (G) drawWrap(); });
+const plainWrap = new THREE.Color('#3b6aa8'), dimCol = new THREE.Color('#1a2228'), white = new THREE.Color('#ffffff');
+function buildCells(){
+  const {R, T} = G; cells = G.cells; const N = cells.length;
+  drawWrap();
+  bodyMat = pmat(0xffffff, {map:wrapTex, roughness:0.42, clearcoat:0.3, clearcoatRoughness:0.35});
+  const la = latheArrays(cellProfile(R, (T-2)/2), 56), bodyGeo = new THREE.BufferGeometry();
+  bodyGeo.setAttribute('position', new THREE.Float32BufferAttribute(la.pos, 3)); bodyGeo.setAttribute('normal', new THREE.Float32BufferAttribute(la.nor, 3));
+  bodyGeo.setAttribute('uv', new THREE.Float32BufferAttribute(la.uv, 2)); bodyGeo.setIndex(la.idx);
+  bodyMesh = new THREE.InstancedMesh(bodyGeo, bodyMat, N);
+  const disk = new THREE.InstancedMesh(new THREE.CylinderGeometry(R-2,R-2,0.6,40), satin(0xc3c9ce), N*2);
+  const capR = R > 10 ? 3.8 : 3.3;
+  const cap = new THREE.InstancedMesh(new THREE.CylinderGeometry(capR,capR,0.8,24), satin(0xc9cfd3), N);
+  const rg = new THREE.RingGeometry(capR+0.5, R-1.4, 40); rg.rotateX(-Math.PI/2);
+  const ring = new THREE.InstancedMesh(rg, mat(0xe9e2cf, {roughness:0.9, side:THREE.DoubleSide}), N);
+  const m4 = new THREE.Matrix4();
+  cells.forEach((c,i) => {
+    if (c.up) m4.makeTranslation(c.x, (T+1)/2, c.z); else { m4.makeRotationX(Math.PI); m4.setPosition(c.x, (T+1)/2, c.z); }
+    bodyMesh.setMatrixAt(i, m4);
+    m4.makeTranslation(c.x, 1.3, c.z); disk.setMatrixAt(i*2, m4);
+    m4.makeTranslation(c.x, T-0.3, c.z); disk.setMatrixAt(i*2+1, m4);
+    m4.makeTranslation(c.x, c.up ? T+0.2 : 0.8, c.z); cap.setMatrixAt(i, m4);
+    if (c.up) m4.makeTranslation(c.x, T+0.22, c.z); else { m4.makeRotationX(Math.PI); m4.setPosition(c.x, 0.78, c.z); }
+    ring.setMatrixAt(i, m4);
+  });
+  bodyMesh.userData.cellOf = i => i; disk.userData.cellOf = i => i >> 1; cap.userData.cellOf = i => i; ring.userData.cellOf = i => i;
+  [bodyMesh, disk, cap, ring].forEach(m => { shade(m); gCells.add(m); });
+  for (let k=1;k<=G.S;k++) label('G'+k, 'grp', V(G.gc[k].x, T+9, G.gc[k].z), gLblTop, 'grp', gCells, true);
+}
+function paintCells(){
+  if (!bodyMesh) return;
+  cells.forEach((c,i) => {
+    const base = cellColorMode==='group' ? groupColor(c.k) : plainWrap.clone();
+    if (hlGroup && c.k !== hlGroup) base.lerp(dimCol, 0.8); else if (hlGroup) base.lerp(white, 0.18);
+    bodyMesh.setColorAt(i, base);
+  });
+  bodyMesh.instanceColor.needsUpdate = true;
+}
+
+/* ---------------- strips, copper ---------------- */
+let nodes = [];
+function buildStrips(){
+  const {T, colX, rowZ, nodeDefs, gc, r, p, w, a, S} = G; const N = cells.length;
+  nodes = [];
+  const dotGeo = new THREE.CylinderGeometry(0.95, 0.95, 0.3, 12), dotMat = mat(0x80766a, {metalness:0.7, roughness:0.55});
+  const dotsTop = new THREE.InstancedMesh(dotGeo, dotMat, N*2), dotsBot = new THREE.InstancedMesh(dotGeo, dotMat, N*2);
+  let it = 0, ib = 0; const m4 = new THREE.Matrix4();
+  for (const d of nodeDefs){
+    const top = d.side === 'top'; const grp = new THREE.Group(); const m = nickel();
+    const yRow = top ? T+0.4 : 0.6, yCol = top ? T+0.5 : 0.5;
+    for (const rr of d.rows){ const cs = d.cells.filter(c=>c.r===rr).map(c=>c.c); const xa = colX(Math.min(...cs))-5, xb = colX(Math.max(...cs))+5; box(xb-xa, 0.8, 7, m, (xa+xb)/2, yRow, rowZ(rr), grp); }
+    for (const cc of d.cols){ const rs = d.cells.filter(c=>c.c===cc).map(c=>c.r); if (rs.length < 2) continue; const za = rowZ(Math.max(...rs))-5, zb = rowZ(Math.min(...rs))+5; box(7, 0.8, zb-za, m, colX(cc), yCol, (za+zb)/2, grp); }
+    for (const c of d.cells) for (const dx of [-2.4, 2.4]){
+      if (top){ m4.makeTranslation(c.x+dx, T+0.98, c.z); dotsTop.setMatrixAt(it++, m4); }
+      else { m4.makeTranslation(c.x+dx, 0.02, c.z); dotsBot.setMatrixAt(ib++, m4); }
+    }
+    (top ? gStripsTop : gStripsBot).add(grp);
+    nodes.push({...d, grp, mat:m, extra:[]});
+    tag(grp, () => nodeInfo(d.n));
+  }
+  dotsTop.count = it; dotsBot.count = ib; noPick(dotsTop); noPick(dotsBot);
+  gStripsTop.add(dotsTop); gStripsBot.add(dotsBot);
+  // U-turn copper bus
+  const busTop = G.busSide === 'top';
+  const xa = colX(0)-5, xb = colX(2*w-1)+5;
+  const bus = box(xb-xa, 1.5, 16, copper(), 0, busTop ? T+1.65 : -0.55, gc[a].z, busTop ? gCuTop : gCuBot);
+  tag(bus, () => busInfo()); nodes[a].extra.push(bus);
+  label('U-turn copper bus', 'comp', V(0, busTop ? T+21 : -18, gc[a].z - 14), busTop ? gLblTop : gLblBot, 'comp', bus, true);
+  // B− / B+ copper tabs and lugs
+  for (const n of [0, S]){
+    const d = nodes[n]; const top = d.side === 'top'; const sx = n===0 ? G.xN : G.xP; const g = n===0 ? 1 : S;
+    const tg = new THREE.Group(); const cm = copper();
+    const tw = Math.min(30, Math.max(12, w*p - 8));
+    const zF = G.FRONT + 1.85, zB = gc[g].z - r*p/2 + 6;
+    if (!top){ box(tw, 1.4, zF - zB, cm, sx, -0.5, (zF+zB)/2, tg); box(tw, 21.2, 1.4, cm, sx, 9.4, G.FRONT+1.15, tg); }
+    else { box(tw, 1.4, zF - zB, cm, sx, T+1.6, (zF+zB)/2, tg); const yt = T+2.3, yb = 8; box(tw, yt-yb, 1.4, cm, sx, (yt+yb)/2, G.FRONT+1.15, tg); }
+    cyl('z', 7.5, 1.2, cm, sx, 14, G.FRONT+2.45, tg, 28);
+    cyl('z', 5, 4, steel(), sx, 14, G.FRONT+4.85, tg, 6);
+    (top ? gCuTop : gCuBot).add(tg); d.extra.push(tg);
+    tag(tg, () => tabInfo(n));
+    label(n===0 ? 'B− · G1 −' : `B+ · G${S} +`, 'comp ' + (n===0 ? 'neg' : 'pos'), V(sx, 36, G.FRONT+10), top ? gLblTop : gLblBot, 'comp', tg, true);
+  }
+}
+
+/* ---------------- NTC beads (top layer) ---------------- */
+function buildNTC(){
+  const busTop = G.busSide === 'top';
+  const b1 = cyl('y', 2.2, 3, mat(0x111111, {roughness:0.4}), G.ntc1x, G.T+3.5, G.ntc1z, gSenseTop, 16);
+  const b2 = cyl('y', 2.2, 3, mat(0x111111, {roughness:0.4}), G.ntc2x, G.T+(busTop ? 3.9 : 3.5), G.ntc2z, gSenseTop, 16);
+  const nt = n => () => ({kicker:'Temperature', title:`NTC ${n}`, rows:[['Type','10 k NTC to the BMS temp port'],['Placed', n===1 ? 'Gap between cells, centre of column A' : (busTop ? 'On the U-turn copper bus' : 'Top strip at the rear, above the U-turn')]], note: n===1 ? 'The middle of a sealed pack runs hottest. The BMS should stop charging below 0 °C and above 45 °C.' : 'The U-turn carries the most current per mm² in the pack, so it warms first under load.'});
+  tag(b1, nt(1)); tag(b2, nt(2));
+  label('NTC 1', 'tap', V(G.ntc1x, G.T+11, G.ntc1z+10), gSenseTop, 'comp', b1, true);
+  label('NTC 2', 'tap', V(G.ntc2x, G.T+11, G.ntc2z+10), gSenseTop, 'comp', b2, true);
+}
+
+/* ---------------- fixed hardware: BMS, fuse, switch, glands, output plug, vent, display ---------------- */
+let ctrlHalo, chgHalo;
+let bmsPlate, bmsLabel, balConn, lever, connA, connLabel, xtB, chargeCap, prop, ctrlLed, chgLed, plugGrp, chgLabel, dispScr, dispKey = '';
+{ const g = gBMS;
+  rbox(110, 22, 70, 4, anod(0x1d2a33), -60, 21, 215, g);
+  for (const [x,z] of [[-110,185],[-10,185],[-110,245],[-10,245]]) cyl('y', 3, 24, steel(), x, -2, z, g, 12);
+  for (let i=0;i<9;i++) rbox(108, 1.5, 3, 0.6, anod(0x26343e), -60, 11+i*2.2, 252, g);
+  for (const z of [196, 236]){ box(16, 0.8, 16, copper(), -104, 32.4, z, g); cyl('y', 3.5, 7, steel(), -104, 35, z, g, 6); }
+  balConn = box(1, 6, 9, mat(0xe6e3da, {roughness:0.7}), -40, 35, 186.5, g);
+  box(10, 6, 9, mat(0xe6e3da, {roughness:0.7}), -10, 35, 202, g);
+  box(10, 6, 8, mat(0xe6e3da, {roughness:0.7}), -30, 35, 244, g);
+  bmsPlate = canvasTex(512, 340, () => {});
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(44, 29), new THREE.MeshStandardMaterial({map:bmsPlate.tx, roughness:0.6}));
+  plane.rotation.x = -Math.PI/2; plane.position.set(-70, 32.15, 218); g.add(plane);
+  tag(g, () => bmsInfo());
+  bmsLabel = label('BMS', 'comp', V(-60, 56, 222), g, 'comp');
+}
+function drawBmsPlate(){
+  const c = BB.calc;
+  bmsLabel.element.textContent = `BMS · ${c.S}S`;
+  balConn.scale.x = G.pinDX*(G.S+1) + 4;
+  bmsPlate.redraw((ctx,w,h) => {
+    ctx.fillStyle = '#15222a'; ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle = '#46c3cd'; ctx.lineWidth = 6; ctx.strokeRect(10,10,w-20,h-20);
+    ctx.fillStyle = '#d6e5ea'; ctx.font = '700 64px "Barlow Condensed", Arial Narrow, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(`${c.S}S SMART BMS`, w/2, 110);
+    ctx.font = '600 58px "IBM Plex Mono", monospace'; ctx.fillStyle = '#46c3cd';
+    ctx.fillText(`${c.bms} A`, w/2, 200);
+    ctx.font = '500 34px "IBM Plex Mono", monospace'; ctx.fillStyle = '#8ea2ac';
+    ctx.fillText(`B−  P−  BAL ${c.S+1}P  NTC×2`, w/2, 275);
+  });
+}
+{ const g = gHW;
+  const fb = new THREE.Group();
+  rbox(44, 20, 76, 3, plastic(0x20262b, {roughness:0.6}), 66, -4, 209, fb);
+  for (const z of [182, 236]) cyl('y', 4.5, 16, steel(), 66, 14, z, fb, 6);
+  box(14, 2.5, 12, copper(), 66, 15, 187, fb); box(14, 2.5, 12, copper(), 66, 15, 231, fb);
+  cyl('z', 9, 34, mat(0xd9cfb5, {roughness:0.7}), 66, 15, 209, fb, 28);
+  cyl('z', 9.6, 4, steel(), 66, 15, 193, fb, 28); cyl('z', 9.6, 4, steel(), 66, 15, 225, fb, 28);
+  g.add(fb); tag(fb, () => fuseInfo());
+  label('Class T fuse', 'comp pos', V(66, 44, 214), fb, 'comp');
+  const sw = new THREE.Group();
+  cyl('z', 26, 28, plastic(0x1b1f23, {roughness:0.5}), 92, 58, 266, sw, 56);
+  for (const x of [78, 106]) cyl('z', 4, 10, steel(), x, 58, 247, sw, 6);
+  cyl('z', 30, 4, mat(0x15191c, {roughness:0.5}), 92, 58, 286, sw, 40);
+  cyl('z', 15, 16, plastic(0xc8312b, {roughness:0.35, clearcoat:0.7}), 92, 58, 296, sw, 48);
+  lever = new THREE.Group(); lever.position.set(92, 58, 302);
+  rbox(56, 12, 12, 4, plastic(0xc8312b, {roughness:0.35, clearcoat:0.7}), 0, 0, 0, lever); sw.add(lever);
+  g.add(sw); tag(sw, () => switchInfo());
+  label('Disconnect switch', 'comp', V(92, 102, 300), sw, 'comp');
+  const gl = new THREE.Group(); const gm = mat(0x191c1f, {roughness:0.6});
+  for (const x of [30, 58]){ cyl('z', 11, 6, gm, x, 116, 277, gl, 6); cyl('z', 12, 6, gm, x, 116, 287, gl, 6); cyl('z', 9.5, 10, gm, x, 116, 295, gl, 28, 7); }
+  g.add(gl); tag(gl, () => ({kicker:'Sealing', title:'M20 cable glands', rows:[['Rating','IP68'],['Fit','Sized to the cable OD, one cable per gland']], note:'Leave a drip loop outside so water runs off the cable before it reaches the gland.'}));
+  const vt = new THREE.Group();
+  cyl('z', 9, 6, mat(0xcfd5d8, {roughness:0.6}), 8, 58, 287, vt, 24); cyl('z', 8, 5, gm, 8, 58, 277.5, vt, 6);
+  g.add(vt); tag(vt, () => ({kicker:'Sealing', title:'Pressure-equalising vent', rows:[['Type','ePTFE membrane, IP67/IP68'],['Thread','M12 shown']], note:'A sealed box breathes as it warms and cools. Without a vent it pulls damp air past the gasket instead.'}));
+  label('Vent', 'comp', V(8, 30, 300), vt, 'comp');
+  const dp = new THREE.Group();
+  rbox(50, 28, 6, 2.5, plastic(0x111518), -36, 112, 287, dp);
+  rbox(40, 22, 16, 2, plastic(0x111518), -36, 112, 272, dp);
+  dispScr = canvasTex(256, 128, () => {});
+  if (document.fonts) document.fonts.ready.then(() => { dispKey = ''; if (G) drawBmsPlate(); });
+  const sp = new THREE.Mesh(new THREE.PlaneGeometry(42, 20), new THREE.MeshBasicMaterial({map:dispScr.tx, toneMapped:false, color:new THREE.Color(1.2, 1.2, 1.2)}));
+  sp.position.set(-36, 112, 290.1); dp.add(sp);
+  g.add(dp); tag(dp, () => ({kicker:'Monitoring', title:'SOC / voltage display', live:true, rows:[['Source','BMS display port'],['Pack now', `${f1(BB.sim.vTerm)} V`],['SOC now', `${Math.round(BB.sim.soc*100)}%`],['Temp now', `${f0(BB.sim.temp)} °C`]], note:'Most smart BMS also offer Bluetooth; the display is handy when your phone is in a dry bag.'}));
+  label('SOC display', 'comp', V(-36, 138, 296), dp, 'comp');
+  connA = new THREE.Group(); g.add(connA); tag(connA, () => xtInfo());
+  xtB = new THREE.Group(); g.add(xtB); tag(xtB, () => xtInfo());
+  connLabel = label('Output plug', 'comp', V(94, 73, 336), g, 'comp', connA);
+}
+// Output connector: battery half (connA, fixed, contacts face down at y 56) and controller half (xtB, slides down to unplug).
+// Negative contact at x 37, positive at x 51 for both types.
+let connType = null;
+function buildConn(){
+  const c = BB.calc.conn; if (connType === c.id) return; connType = c.id;
+  clearGroup(connA); clearGroup(xtB);
+  const red = () => plastic(0xc8312b), blk = () => plastic(0x1d2024), gold = () => mat(0xd9ab45, {metalness:1, roughness:0.22, roughnessMap:brushed});
+  if (c.id === 'as150'){
+    for (const [x, m] of [[37, blk], [51, red]]){
+      cyl('y', 7.5, 34, m(), x, 73, 330, connA, 24);
+      cyl('y', 8.1, 3, m(), x, 58, 330, connA, 6);
+      cyl('y', 7.5, 30, m(), x, -2, 330, xtB, 24);
+      cyl('y', 8.1, 3, m(), x, -15.5, 330, xtB, 6);
+      cyl('y', 3.5, 4, gold(), x, 15, 330, xtB, 16);
+    }
+    box(30, 4, 6, mat(0x2a2f33, {roughness:0.6}), 44, 80, 330, connA);
+  } else {
+    rbox(14.6, 34, 15, 2.5, blk(), 37, 73, 330, connA); rbox(14.6, 34, 15, 2.5, red(), 51, 73, 330, connA);
+    box(29.6, 3, 16, mat(0x3a3f44, {roughness:0.6}), 44, 59, 330, connA);
+    rbox(14.6, 34, 15, 2.5, blk(), 37, 0, 330, xtB); rbox(14.6, 34, 15, 2.5, red(), 51, 0, 330, xtB);
+    for (const x of [37, 51]) cyl('y', 4, 3, gold(), x, 17.5, 330, xtB, 16);
+  }
+  connLabel.element.textContent = `${c.name} output`;
+}
+{ const g = gCharge;
+  const cp = new THREE.Group(); const dk = mat(0x15191c, {roughness:0.5});
+  box(30, 30, 4, dk, -92, 108, 286, cp);
+  cyl('z', 11, 12, mat(0x8c969c, {metalness:0.7, roughness:0.35}), -92, 108, 294, cp, 28);
+  chargeCap = cyl('z', 12.5, 8, dk, -92, 108, 304, cp, 28);
+  cyl('z', 10, 18, dk, -92, 108, 271, cp, 28);
+  g.add(cp); tag(cp, () => ({kicker:'Charging', title:'Charge port (aviation socket)', rows:[['Type', `GX16 / GX20 class, ≥ ${BB.calc.vRate} V rated`],['Pins','+ and −, shrouded sockets on the battery side'],['Charger', `${f1(BB.calc.vFull)} V CC/CV, ${f0(BB.calc.chg)} A`]], note:'Cap it whenever you are not charging. The positive is live through the charge fuse even with the switch OFF.', acts:[[BB.sim.charger ? 'Unplug charger' : 'Plug in charger', () => BB.simApi.set('charger', !BB.sim.charger)]], live:true}));
+  label('Charge port', 'comp', V(-100, 138, 300), cp, 'comp');
+  const cf = new THREE.Group();
+  rbox(32, 14, 14, 4, plastic(0x2b2f33), -40, 134, 256, cf);
+  box(12, 6, 1, mat(0xd2493f, {roughness:0.5}), -40, 134, 263.2, cf);
+  g.add(cf); tag(cf, () => ({kicker:'Charging', title:'Inline charge fuse', rows:[['Rating', `${BB.calc.chargeFuse} A, ≥ ${BB.calc.chargeFuseV} V DC`],['Protects', `${BB.calc.chargeAwg.awg} charge leads`]], note:'Without it, a pinched charge lead is protected only by the main fuse, which is far too big for thin wire.'}));
+}
+
+/* ---------------- load (controller + motor) and charger, outside the box ---------------- */
+let mate = BB.sim && !BB.sim.load ? 0 : 1, plugT = BB.sim && BB.sim.charger ? 1 : 0;
+const xtBy = () => 17 + 22*mate;   // centre of the controller half: 39 when mated (top at 56), 17 when pulled apart
+const PLUG_MATED = V(-92, 108, 311);
+function plugPos(){ const rest = V(-180 - (G ? G.OX : 0), -5, 430); const p = rest.lerp(PLUG_MATED, plugT); p.y += Math.sin(Math.PI*plugT)*70; return p; }
+{ const g = gLoadMov;
+  const ctl = new THREE.Group();
+  rbox(110, 40, 150, 6, anod(0x2b3237), 270, 2, 330, ctl);
+  for (let i=0;i<9;i++) rbox(104, 6, 2.5, 0.8, anod(0x3a444b), 270, 25, 268 + i*15.5, ctl);
+  ctrlLed = new THREE.Mesh(new THREE.SphereGeometry(3, 12, 8), new THREE.MeshBasicMaterial({color:0x1e2a22, toneMapped:false}));
+  ctrlLed.position.set(300, 23, 404); ctl.add(ctrlLed); ctrlHalo = halo(ctl, 300, 27, 404, 30);
+  g.add(ctl); tag(ctl, () => controllerInfo());
+  label('Motor controller', 'comp', V(270, 52, 330), ctl, 'comp');
+  const mot = new THREE.Group(); const brass = () => mat(0xc29236, {metalness:1, roughness:0.24, roughnessMap:brushed});
+  rbox(70, 36, 60, 4, anod(0x3a444b), 445, 0, 330, mot);
+  cyl('x', 42, 90, anod(0x30383e), 445, 60, 330, mot, 64);
+  for (let i=0;i<7;i++) cyl('x', 43.2, 2.2, anod(0x3b454d), 412 + i*11, 60, 330, mot, 64);
+  for (const x of [400, 490]) cyl('x', 44, 10, satin(0xb4bdc3), x, 60, 330, mot, 64);   // caps wrap 5 mm past each end of the body
+  prop = new THREE.Group(); prop.position.set(490, 60, 330);
+  cyl('x', 5, 50, steel(), 25, 0, 0, prop, 16);
+  box(3, 30, 6, mat(0xff7a1a, {roughness:0.5}), 4, 0, 0, prop);
+  cyl('x', 10, 18, brass(), 55, 0, 0, prop, 20);
+  for (let i=0;i<3;i++){ const b = new THREE.Group(); b.position.x = 55; b.rotation.x = i*2*Math.PI/3; box(3, 56, 24, brass(), 0, 36, 0, b).rotation.y = 0.35; prop.add(b); }
+  mot.add(prop);
+  g.add(mot); tag(mot, () => motorInfo());
+  label('Motor + prop (load)', 'comp', V(460, 132, 330), mot, 'comp');
+}
+{ const g = gChgMov;
+  const ch = new THREE.Group();
+  rbox(100, 55, 170, 8, anod(0x23292e), -290, 9.5, 330, ch);
+  for (let i=0;i<8;i++) rbox(94, 5, 2.5, 0.8, anod(0x30383e), -290, 39.5, 262 + i*19, ch);
+  chgLed = new THREE.Mesh(new THREE.SphereGeometry(3.5, 12, 8), new THREE.MeshBasicMaterial({color:0x241c1c, toneMapped:false}));
+  chgLed.position.set(-262, 25, 415.6); ch.add(chgLed); chgHalo = halo(ch, -262, 25, 420, 34);
+  rbox(24, 30, 14, 3, plastic(0x15191c), -400, -3, 200, ch);
+  g.add(ch); tag(ch, () => chargerInfo());
+  chgLabel = label('Charger', 'comp', V(-290, 66, 330), ch, 'comp');
+  plugGrp = new THREE.Group();
+  cyl('z', 13, 30, mat(0x15191c, {roughness:0.5}), 0, 0, 0, plugGrp, 28);
+  cyl('z', 11.5, 4, mat(0x8c969c, {metalness:0.7, roughness:0.35}), 0, 0, -16, plugGrp, 28);
+  gCharger.add(plugGrp); tag(plugGrp, () => chargerInfo());
+}
+
+/* ---------------- wires ---------------- */
+const wires = []; const wireById = {};
+function roundedPath(pts, r){
+  const path = new THREE.CurvePath();
+  const q = [pts[0]]; for (let i=1;i<pts.length;i++) if (pts[i].distanceTo(q[q.length-1]) > 0.05) q.push(pts[i]);
+  if (q.length < 2) q.push(q[0].clone().add(V(0,0.1,0)));
+  let prev = q[0].clone();
+  for (let i=1;i<q.length-1;i++){
+    const a = q[i-1], b = q[i], c = q[i+1];
+    const d1 = b.clone().sub(a), d2 = c.clone().sub(b);
+    const rr = Math.min(r, d1.length()/2, d2.length()/2);
+    const p1 = b.clone().sub(d1.normalize().multiplyScalar(rr)), p2 = b.clone().add(d2.normalize().multiplyScalar(rr));
+    if (prev.distanceTo(p1) > 0.05) path.add(new THREE.LineCurve3(prev.clone(), p1));
+    if (rr > 0.05) path.add(new THREE.QuadraticBezierCurve3(p1.clone(), b.clone(), p2.clone()));
+    prev = p2;
+  }
+  const last = q[q.length-1];
+  if (prev.distanceTo(last) > 0.05 || path.curves.length === 0) path.add(new THREE.LineCurve3(prev.clone(), last.clone()));
+  return path;
+}
+function addWire(def){ def.mat = pmat(def.color, {roughness:0.42, clearcoat:0.25, clearcoatRoughness:0.45}); wires.push(def); wireById[def.id] = def; return def; }
+const lugMat = mat(0xcfc6b8, {metalness:1, roughness:0.3, roughnessMap:brushed}); lugMat.userData.keep = true;
+const unitCyl = new THREE.CylinderGeometry(1, 1, 1, 20); unitCyl.userData.keep = true;
+const Y_UP = V(0,1,0);
+function removeWire(w){
+  if (w.mesh){ w.parent.remove(w.mesh); disposeTree(w.mesh); }
+  wires.splice(wires.indexOf(w), 1); delete wireById[w.id];
+}
+let explodeT = 0;
+function buildWire(w){
+  const pts = w.pts(explodeT); const path = roundedPath(pts, w.bend ?? 6);
+  const len = path.getLength(); w.path = path; w.len = len;
+  const r = typeof w.radius === 'function' ? w.radius() : w.radius;
+  const geo = new THREE.TubeGeometry(path, Math.max(12, Math.min(800, Math.round(len/2))), r, r > 2 ? 18 : 8, false);
+  if (!w.mesh){
+    w.mesh = shade(new THREE.Mesh(geo, w.mat)); w.parent.add(w.mesh); tag(w.mesh, w.info);
+    w.fat = r > 1.5;
+    if (w.fat){
+      // heavy cables end in a glossy heat-shrink sleeve and a tinned lug barrel
+      w.sleeveMat = pmat(new THREE.Color(w.color).multiplyScalar(0.8), {roughness:0.22, clearcoat:0.9, clearcoatRoughness:0.15});
+      w.caps = [0,1].map(() => { const g = new THREE.Group(), sl = shade(new THREE.Mesh(unitCyl, w.sleeveMat)), lug = shade(new THREE.Mesh(unitCyl, lugMat)); g.add(sl, lug); g.userData.parts = [sl, lug]; w.mesh.add(g); return g; });
+    } else {
+      w.caps = [0,1].map(() => { const s = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), w.mat); w.mesh.add(s); return s; });
+    }
+  } else { w.mesh.geometry.dispose(); w.mesh.geometry = geo; }
+  if (w.fat){
+    [0,1].forEach(e => {
+      const g = w.caps[e], pEnd = path.getPoint(e), out = path.getTangent(e).clone().multiplyScalar(e ? 1 : -1).normalize();
+      g.position.copy(pEnd); g.quaternion.setFromUnitVectors(Y_UP, out);
+      const [sl, lug] = g.userData.parts;
+      sl.scale.set(r*1.22, 16, r*1.22); sl.position.set(0, -6, 0);
+      lug.scale.set(r*0.82, 7, r*0.82); lug.position.set(0, 3.5, 0);
+    });
+  } else {
+    w.caps[0].position.copy(path.getPoint(0)); w.caps[1].position.copy(path.getPoint(1)); w.caps.forEach(c => c.scale.setScalar(r*1.02));
+  }
+}
+function buildAllWires(filter){ wires.forEach(w => { if (!filter || filter(w)) buildWire(w); }); }
+const mainR = () => BB.calc.cable.r, chgR = () => BB.calc.chargeAwg.r;
+const POS = 0xc8342c, NEG = 0x222528;
+const mainWire = (id, color, pts, info, pack) => addWire({id, kind:'main', color, radius:mainR, bend:9, parent:gMain, pts, info, pack});
+// fixed runs (front bay, output, load, charger)
+mainWire('pneg', NEG, () => [V(-104,36,236), V(-104,48,236), V(-104,48,258), V(30,48,258), V(30,116,258), V(30,116,276)], () => runInfo('pneg'));
+mainWire('fuse-sw', POS, () => [V(66,23,236), V(66,58,236), V(78,58,236), V(78,58,244)], () => runInfo('fuse-sw'));
+mainWire('sw-out', POS, () => [V(106,58,244), V(106,58,238), V(106,116,238), V(58,116,238), V(58,116,276)], () => runInfo('sw-out'));
+mainWire('pig-pos', POS, () => [V(58,116,280), V(58,116,316), V(51,106,330), V(51,91,330)], () => runInfo('pig-pos'));
+mainWire('pig-neg', NEG, () => [V(30,116,280), V(30,116,316), V(37,106,330), V(37,91,330)], () => runInfo('pig-neg'));
+mainWire('ctrl-pos', POS, () => [V(51,xtBy()-17,330), V(51,-8,330), V(51,-8,340), V(215+G.OX,-8,340)], () => runInfo('ctrl'));
+mainWire('ctrl-neg', NEG, () => [V(37,xtBy()-17,330), V(37,-8,330), V(37,-8,320), V(215+G.OX,-8,320)], () => runInfo('ctrl'));
+addWire({id:'chg-pos', kind:'charge', color:0xd0463c, radius:chgR, bend:7, parent:gCharge,
+  pts: () => [V(-97,108,262), V(-97,108,256), V(-97,134,256), V(-22,134,256), V(78,134,256), V(78,134,248), V(78,64,248)], info: () => runInfo('chg-pos')});
+addWire({id:'chg-neg', kind:'charge', color:NEG, radius:chgR, bend:7, parent:gCharge,
+  pts: () => [V(-87,108,262), V(-87,108,250), V(-87,52,250), V(-96,52,240), V(-96,37,236)], info: () => runInfo('chg-neg')});
+addWire({id:'disp', kind:'sense', color:0x8a949b, radius:1.0, bend:5, parent:gSense,
+  pts: () => [V(-30,38,244), V(-30,64,244), V(-36,64,262), V(-36,112,262), V(-36,112,264)], info: () => ({kicker:'Monitoring', title:'Display lead', rows:[['From','BMS display port'],['To','SOC display on the front wall']], note:'Low-voltage signal lead; keep it away from the main cables where you can.'})});
+[0xe8c547, 0x3fa35a, 0x3a6fd0].forEach((col, i) => { const z = 315 + i*15;
+  addWire({id:'ph'+i, kind:'load', color:col, radius:2.6, bend:6, parent:gLoad, pts: () => [V(325+G.OX,0,z), V(372+G.OX,0,z), V(372+G.OX,60,z), V(400+G.OX,60,z)], info: () => phaseInfo()}); });
+addWire({id:'chg-cable', kind:'chgcable', color:0x1b1e21, radius:3.2, bend:12, parent:gCharger,
+  pts: () => { const P = plugPos(); return [V(P.x,P.y,P.z+15), V(P.x,P.y,P.z+45), V(P.x,4,P.z+45), V(-215-G.OX,4,380), V(-240-G.OX,10,380)]; }, info: () => chargerInfo()});
+addWire({id:'ac-cord', kind:'chgcable', color:0x1b1e21, radius:3.0, bend:14, parent:gCharger,
+  pts: () => [V(-340-G.OX,10,300), V(-370-G.OX,10,300), V(-370-G.OX,-13,300), V(-400-G.OX,-13,240), V(-400-G.OX,-13,207)], info: () => chargerInfo()});
+// pack-dependent runs (rebuilt with the pack)
+function addPackWires(){
+  for (let k=0;k<=G.S;k++){
+    addWire({id:'bal'+k, pack:true, kind:'balance', color:nodeColor(k).getHex(), radius:0.9, bend:3, parent:gBalance,
+      pts: t => {
+        const d = nodes[k]; const top = d.side==='top'; const dy = off(d.side, t), T = G.T;
+        const A = k <= G.a, sx = A ? -1 : 1, L = A ? k : k - G.a - 1;
+        const laneX = sx*(G.holderHalf + 1.3 + 2*L), laneY = 28 + G.laneDY*L, fz = A ? 164 : 167.5, px = pinX(k);
+        return [V(d.tap.x, (top?T+0.9:0.1)+dy, d.tap.z), V(d.tap.x, (top?T+2.4:-1.4)+dy, d.tap.z), V(laneX, (top?T+2.4:-1.4)+dy, d.tap.z),
+          V(laneX, laneY, d.tap.z), V(laneX, laneY, fz), V(px, laneY, fz), V(px, laneY, 186), V(px, 38.5, 186)];
+      },
+      info: () => balInfo(k)});
+    const d = G.nodeDefs[k], top = d.side==='top', A = k <= G.a;
+    label('B'+k, 'tap', V((A ? -1 : 1)*(G.BX.x1 + 16), top ? G.T+7 : -6, d.tap.z), top ? gLblTop : gLblBot, 'tap', gBalance, true).element.style.borderColor = '#' + nodeColor(k).getHexString();
+  }
+  mainWire('bneg', NEG, t => [V(G.xN,14+OB(t),163), V(G.xN,18,171), V(-104,18,171), V(-104,40,174), V(-104,40,196), V(-104,35.5,196)], () => runInfo('bneg'), true);
+  mainWire('bpos', POS, t => [V(G.xP,14+off(G.sideS,t),163), V(G.xP,22,171), V(66,22,171), V(66,23,182)], () => runInfo('bpos'), true);
+  addWire({id:'ntc1', pack:true, kind:'sense', color:0xd9dde0, radius:0.7, bend:4, parent:gSense,
+    pts: t => { const y = G.T+6+OT(t); return [V(-12,38,202), V(-12,84,202), V(-12,84,160), V(-12,y,140), V(-12,y,G.ntc1z), V(G.ntc1x,y,G.ntc1z), V(G.ntc1x,G.T+5+OT(t),G.ntc1z)]; }, info: () => runInfo('ntc')});
+  addWire({id:'ntc2', pack:true, kind:'sense', color:0xd9dde0, radius:0.7, bend:4, parent:gSense,
+    pts: t => { const y = G.T+6.5+OT(t), zt = G.ntc2z; return [V(-8,38,202), V(-8,86,202), V(-8,86,160), V(-8,y,140), V(-8,y,zt+24), V(G.ntc2x,y,zt+24), V(G.ntc2x,y,zt), V(G.ntc2x,G.T+(G.busSide==='top'?5.4:5)+OT(t),zt)]; }, info: () => runInfo('ntc')});
+}
+
+/* ---------------- info builders ---------------- */
+const vAt = n => `${f1(n*3.6)} V nom · ${f1(n*4.2)} V full`;
+function nodeInfo(n){
+  const d = nodes[n], c = BB.calc;
+  if (n===0 || n===G.S) return tabInfo(n);
+  const where = n===G.a ? ' · U-turn at the rear' : (n<G.a ? ' · column A' : ' · column B');
+  const rows = [['Joins', `G${n} + → G${n+1} −`], ['Side', d.side + where], ['Balance lead', `B${n}`], ['Potential vs B−', vAt(n)]];
+  rows.push(n===G.a ? ['Current per row', `≈ ${f0(c.uturnA)} A at ${f0(c.W)} W`] : ['Current per strip', `≈ ${f1(c.stripA)} A at ${f0(c.W)} W`]);
+  return {kicker:'Series link', title:`Node B${n} · ${d.side} strip`, rows, note: n===G.a ? 'This is the U-turn: current crosses from column A to column B. Back the nickel with the copper bus.' : `The ${G.w} strip${G.w>1?'s':''} along the columns carry the series current; the crosswise strips tie each group of ${G.P} in parallel.`, acts:[['Show balance lead', () => api.highlightBalance(n)]]};
+}
+function tabInfo(n){
+  const c = BB.calc; const neg = n===0; const side = nodes[n].side;
+  return {kicker: neg ? 'Pack negative' : 'Pack positive', title: neg ? 'B− tab · G1 negative' : `B+ tab · G${G.S} positive`,
+    rows:[['Material', `Copper tab ${side==='top' ? 'over' : 'under'} the nickel, folded ${side==='top' ? 'down' : 'up'} the front face`],['Bolt','M6 stainless, ring lug, boot'],['Cable', `${c.cable.awg} → ${neg ? 'BMS B−' : 'Class T fuse'}`],['Balance lead', `B${n}`]],
+    note: neg ? 'Bolt this to the BMS B− pad before plugging in the balance leads.' : 'Keep this lug booted until the very end of the build. It is live to the full pack whenever the pack is assembled.',
+    acts:[['Show balance lead', () => api.highlightBalance(n)]]};
+}
+function busInfo(){ const c = BB.calc; return {kicker:'Series link', title:'U-turn copper bus', rows:[['Joins', `G${G.a} + (column A) → G${G.a+1} − (column B)`],['Side', G.busSide],['Current', `≈ ${f0(c.iCut)} A total, ${f0(c.uturnA)} A per row`],['Section', `≥ ${c.busMM2} mm² copper (≈ 4 A/mm²)`]], note:'Weld or solder the copper over the nickel row strips so the current crosses the divider in copper, not thin nickel.'}; }
+function bmsInfo(){ const c = BB.calc; return {kicker:'Protection', title:`${c.S}S smart BMS`, rows:[['Rating', `≥ ${c.bms} A continuous, common port`],['B−','Pack negative (G1 −)'],['P−','Output and charger negative'],['Balance plug', `${c.S+1} pins, B0 → B${c.S}`],['Sensors','2 × NTC + display / Bluetooth']], note:'Set cell under-voltage to ' + c.cut.toFixed(2) + ' V and over-voltage to 4.20 V. If the BMS has a separate C− pad, the charger negative goes there instead of P−.'}; }
+function fuseInfo(){ const c = BB.calc; return {kicker:'Protection', title:'Class T main fuse', rows:[['Rating', `${c.fuse} A`],['Voltage','125–160 V DC, 20 kA interrupt'],['Protects', `${c.cable.awg} main cable`],['Placement','First thing after the B+ tab']], note:`Lithium cells can deliver thousands of amps into a short. Many automotive fuses (ANL, MIDI, MEGA) are only 32 V or 58 V DC rated, below this pack's ${f1(c.vFull)} V.`}; }
+function switchInfo(){ const c = BB.calc, S = BB.sim; return {kicker:'Isolation', title:'Battery disconnect switch', live:true, rows:[['Rating', `≥ ${c.vRate} V DC, ≥ ${c.fuse} A`],['Position','After the fuse, before the output'],['Now', S.sw ? 'ON' : 'OFF']], note:`The charge port joins on the fuse side of the switch, so charging works with the switch OFF. Close the switch only after the ${BB.calc.conn.name} has pre-charged the controller.`, acts:[[S.sw ? 'Turn OFF' : 'Turn ON', () => BB.simApi.set('sw', !BB.sim.sw)]]}; }
+function chargerInfo(){ const S = BB.sim, C = BB.calc;
+  const mode = !S.charger ? 'Unplugged' : S.chgPhase==='CC' ? 'Constant current' : S.chgPhase==='CV' ? 'Constant voltage (tapering)' : S.chgPhase==='Full' ? 'Full, standing by' : S.chgPhase==='Blocked' ? 'Blocked by the BMS' : 'Waiting';
+  return {kicker:'Charging', title:`${C.S}S Li-ion charger`, live:true, rows:[['Profile', `${f1(C.vFull)} V CC/CV · ${f0(C.chg)} A`],['Mode', mode],['Output now', `${f1(S.iChg)} A`],['Pack', `${f1(S.vTerm)} V · ${Math.round(S.soc*100)}%`]],
+    note:`Use a charger built for ${C.S}S lithium-ion (${f1(C.vFull)} V). A LiFePO4 or lead-acid profile will over- or under-charge this pack. Charge current lands on the fused bus through the charge fuse, so it works with the main switch OFF.`,
+    acts:[[S.charger ? 'Unplug charger' : 'Plug in charger', () => BB.simApi.set('charger', !BB.sim.charger)]]};
+}
+function controllerInfo(){ const S = BB.sim, C = BB.calc;
+  return {kicker:'Load', title:'Motor controller', live:true, rows:[['Input window', `must cover ${f1(C.vCut)}–${f1(C.vFull)} V`],['Status', !S.load ? 'Unplugged' : !S.sw ? 'No power (switch OFF)' : !S.dsgOn ? 'No power (BMS cut)' : 'Powered'],['Current now', `${f1(S.iLoad)} A`],['Power now', `${f0(S.pLoad)} W`]],
+    note:'Set the controller\'s own low-voltage cutoff at or a little above the pack empty voltage, so it backs off before the BMS has to cut power.',
+    acts:[[S.load ? `Unplug ${C.conn.name}` : `Plug in ${C.conn.name}`, () => BB.simApi.set('load', !BB.sim.load)], [S.sw ? 'Switch OFF' : 'Switch ON', () => BB.simApi.set('sw', !BB.sim.sw)]]};
+}
+function motorInfo(){ const S = BB.sim, C = BB.calc;
+  return {kicker:'Load', title:'Motor + prop', live:true, rows:[['Throttle', `${Math.round(S.throttle*100)}%`],['Speed', `${f0(S.rpm)} rpm`],['Drawing', `${f0(S.pLoad)} W · ${f1(S.iLoad)} A`],['Full throttle', `${f0(C.W)} W (set on the Pack tab)`]],
+    note:'Spins only when the output plug is in, the main switch is ON and the BMS allows discharge. The throttle slider in the Power panel sets the speed.'};
+}
+const phaseInfo = () => ({kicker:'Load', title:'Motor phase wires U / V / W', rows:[['From','Motor controller'],['Gauge', `${BB.calc.cable.awg} or heavier`]], note:'Phase current can exceed battery current at low speed and high torque. Swap any two phases to reverse the motor.'});
+function xtInfo(){ const c = BB.calc, S = BB.sim, k = c.conn; return {kicker:'Output', title:`${k.name} anti-spark connector`, live:true,
+  rows:[['Type', k.long],['Poles', k.poles],['Now', S.load ? 'Plugged in' : 'Unplugged'],['Current now', `${f1(S.iLoad)} A`],['Rating', `≈${k.cont} A continuous · ${k.burst} A burst · ${k.volt} V DC`],['Verdict', c.xt.text]],
+  note: c.xt.note + ' The anti-spark half has a resistor on a short leading contact that pre-charges the controller capacitors before the main bullet touches, so push it in slowly and fully. ' + k.keyNote,
+  acts:[[S.load ? `Unplug ${k.name}` : `Plug in ${k.name}`, () => BB.simApi.set('load', !BB.sim.load)]]}; }
+const RUN_TEXT = {
+  bneg:['Pack negative','B− tab → BMS B−','main'], pneg:['Output negative','BMS P− → gland','main'], bpos:['Pack positive','B+ tab → Class T fuse','main'],
+  'fuse-sw':['Fused bus','Fuse OUT → switch IN','main'], 'sw-out':['Output positive','Switch OUT → gland','main'],
+  'pig-pos':['Output positive','Gland → OUT +','main'], 'pig-neg':['Output negative','Gland → OUT −','main'], ctrl:['Controller leads','OUT → motor controller','main'],
+  'chg-pos':['Charge positive','Port + → inline fuse → switch IN','charge'], 'chg-neg':['Charge negative','Port − → BMS P−','charge'], ntc:['Temperature','BMS → NTC probes','sense']
+};
+function runInfo(id){
+  const c = BB.calc; const [k,t0,sz] = RUN_TEXT[id]; const t = t0.replace('OUT', c.conn.name);
+  const w = wireById[id] || wireById[id==='ctrl' ? 'ctrl-pos' : 'ntc1'];
+  const size = sz==='main' ? `${c.cable.awg} (${c.cable.mm2} mm²)` : sz==='charge' ? c.chargeAwg.awg : '24 AWG pair';
+  const rows = [['Run', t], ['Cable', size], ['Length in model', `≈ ${Math.round((w && w.len || 0)/10)} cm`]];
+  if (sz==='main') rows.push(['Worst-case current', `${f0(c.iCut)} A`]);
+  return {kicker:k, title:t, rows, note: sz==='main' ? 'Tinned marine cable, crimped lugs with adhesive heat-shrink. Keep it as short as the layout allows and clamp it so it cannot rub.' : sz==='charge' ? 'Thinner leads are fine because the inline fuse limits them.' : 'Twisted pair, glued down along the pack top.'};
+}
+function balInfo(k){
+  const d = nodes[k];
+  const lands = k===0 ? 'G1 − (pack B−)' : k===G.S ? `G${G.S} + (pack B+)` : `G${k}+ / G${k+1}− ${d.side} strip`;
+  return {kicker:'Balance lead', title:`B${k} sense lead`, rows:[['Lands on', lands],['Plug pin', `${k+1} of ${G.S+1}`],['B' + k + ' − B0', vAt(k)],['Wire','22 AWG silicone']], note:'Solder to a strip tail, not to a cell. Route along the side of the pack, glue it down and keep it off strip edges. A 1 A fuse or PTC at the tap end is cheap insurance.'};
+}
+function cellInfo(i){
+  const c = cells[i], C = BB.calc;
+  return {kicker:`Cell · ${G.fmt}`, title:`Cell R${c.r+1} · C${c.c+1}`, rows:[['Series group', `G${c.k} (${G.P} in parallel)`],['Column', c.c<G.w ? `A (G1–G${G.a})` : `B (G${G.a+1}–G${G.S})`],['Orientation', c.up ? '+ end up' : '+ end down'],['Between taps', `B${c.k-1} → B${c.k}`],['Load at empty', `${f1(C.perCell)} A of ${f0(C.a)} A`]],
+    note:'Every + end gets a paper insulator ring. Orientation flips each group so the top and bottom strips can link neighbours in series.', acts:[[`Highlight G${c.k}`, () => api.highlightGroup(c.k)]]};
+}
+function groupInfo(k){
+  const C = BB.calc;
+  return {kicker:`Series group · ${G.P}P`, title:`Series group G${k}`, rows:[['Column', k<=G.a ? 'A' : 'B'],['Orientation', k%2 ? '+ end up' : '+ end down'],['Between taps', `B${k-1} → B${k}`],['Group voltage', `${f1((k-1)*3.6)} → ${f1(k*3.6)} V nom`],['Group capacity', `${f1(G.P*C.ah)} Ah`]], note:`All ${G.P} cells in a group must match closely in voltage before welding; they share current and are never separated by the BMS.`};
+}
+
+/* ---------------- current flow (driven by the power simulation) ---------------- */
+let flowOn = true;
+const FLOW_MAX = 480;
+const flowGeo = new THREE.SphereGeometry(2.6, 10, 8);
+const streams = {};
+for (const id of ['pack','load','chgIn','chgRet']){
+  const m = new THREE.InstancedMesh(flowGeo, new THREE.MeshBasicMaterial({color:0xffc857, toneMapped:false}), FLOW_MAX);
+  m.count = 0; m.visible = false; m.frustumCulled = false; m.userData.noAO = true; noPick(m); world.add(m);
+  const hp = new Float32Array(FLOW_MAX*3), hg = new THREE.BufferGeometry();
+  hg.setAttribute('position', new THREE.BufferAttribute(hp, 3)); hg.setDrawRange(0, 0);
+  const hl = new THREE.Points(hg, new THREE.PointsMaterial({size:44, map:glowTex, color:0xffc857, transparent:true, opacity:0.5, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true, toneMapped:false}));
+  hl.frustumCulled = false; hl.visible = false; noPick(hl); world.add(hl);
+  streams[id] = {mesh:m, halo:hl, hp, path:null, len:1, phase:0};
+}
+function seriesPts(t){ const pts = []; for (let k=1;k<=G.S;k++){ const g = G.gc[k], odd = k%2===1; const yb = 0.6+OB(t), yt = G.T+0.4+OT(t); pts.push(V(g.x, odd?yb:yt, g.z), V(g.x, odd?yt:yb, g.z)); } return pts; }
+const OFF_IN = V(0,2.2,2.2), OFF_RET = V(0,-2.2,-2.2);
+// Paths follow normal current direction: pack = discharge (B− through the cells to B+), load = bus → motor → P−, charger = charger → bus / P− → charger.
+function streamPts(id){
+  const t = explodeT, ob = OB(t), W = w => wireById[w].pts(t), F = G.FRONT + 1.15;
+  if (id === 'pack'){
+    const sTop = G.sideS === 'top', oS = off(G.sideS, t), yS = sTop ? G.T+1.6+oS : -0.5+ob;
+    return [V(-104,36,236), V(-104,24,236), V(-104,24,196), V(-104,36,196), ...W('bneg').reverse(),
+      V(G.xN,14+ob,F), V(G.xN,-0.5+ob,F), V(G.xN,-0.5+ob,G.gc[1].z), ...seriesPts(t),
+      V(G.xP,yS,G.gc[G.S].z), V(G.xP,yS,F), V(G.xP,14+oS,F), ...W('bpos'), V(66,15,182), V(66,15,236), ...W('fuse-sw')];
+  }
+  if (id === 'load') return [V(78,58,244), V(78,58,258), V(106,58,258), V(106,58,244), ...W('sw-out'), ...W('pig-pos'), ...W('ctrl-pos'),
+    V(240+G.OX,-8,340), V(240+G.OX,-8,320), ...W('ctrl-neg').reverse(), V(37,91,330), ...W('pig-neg').reverse(), ...W('pneg').reverse()];
+  const cable = W('chg-cable');
+  if (id === 'chgIn') return [V(-262-G.OX,10,380), ...cable.slice().reverse().map(p => p.add(OFF_IN)), V(-97,108,300), ...W('chg-pos'), V(78,58,244)];
+  return [V(-104,36,236), ...W('chg-neg').reverse(), V(-87,108,300), ...cable.map(p => p.add(OFF_RET)), V(-262-G.OX,10,380)];
+}
+function rebuildStreams(){
+  for (const [id, st] of Object.entries(streams)){
+    st.path = roundedPath(streamPts(id), 3); st.len = Math.max(1, st.path.getLength());
+    st.mesh.count = Math.min(FLOW_MAX, Math.max(6, Math.floor(st.len/16)));
+  }
+}
+const tmpM = new THREE.Matrix4();
+function stepStreams(dt){
+  const S = BB.sim; if (!S) return;
+  const spec = {
+    pack:  {a:Math.abs(S.iBat), on:Math.abs(S.iBat) > 0.05, dir:S.iBat < 0 ? 1 : -1, col:S.iBat < 0 ? 0xffc857 : 0x56e0c8},
+    load:  {a:S.iLoad, on:S.iLoad > 0.05 && mate === 1, dir:1, col:0xffc857},
+    chgIn: {a:S.iChg, on:S.iChg > 0.05 && plugT === 1, dir:1, col:0x56e0c8},
+    chgRet:{a:S.iChg, on:S.iChg > 0.05 && plugT === 1, dir:1, col:0x56e0c8}
+  };
+  for (const [id, st] of Object.entries(streams)){
+    const sp = spec[id]; const vis = flowOn && sp.on && st.path;
+    st.mesh.visible = !!vis; st.halo.visible = !!vis; if (!vis) continue;
+    st.mesh.material.color.setHex(sp.col).multiplyScalar(1.5); st.halo.material.color.setHex(sp.col);
+    const v = (25 + sp.a*2.2)*sp.dir;
+    st.phase = (((st.phase + v*dt/st.len) % 1) + 1) % 1;
+    const n = st.mesh.count;
+    for (let i=0;i<n;i++){ const pnt = st.path.getPoint((i/n + st.phase) % 1); if (!pnt) continue; tmpM.makeTranslation(pnt.x, pnt.y, pnt.z); st.mesh.setMatrixAt(i, tmpM); st.hp[i*3] = pnt.x; st.hp[i*3+1] = pnt.y; st.hp[i*3+2] = pnt.z; }
+    st.mesh.instanceMatrix.needsUpdate = true;
+    st.halo.geometry.setDrawRange(0, n); st.halo.geometry.attributes.position.needsUpdate = true;
+  }
+}
+
+/* ---------------- live state from the power simulation ---------------- */
+const approach = (a, b, d) => a < b ? Math.min(b, a+d) : Math.max(b, a-d);
+function placeMovers(){ xtB.position.y = xtBy(); plugGrp.position.copy(plugPos()); chargeCap.visible = plugT < 0.5; }
+function drawDisplay(){
+  const S = BB.sim; const l1 = `${S.vTerm.toFixed(1)}V`, l2 = `SOC ${Math.round(S.soc*100)}%  ${Math.round(S.temp)}°C`;
+  if (l1 + l2 === dispKey) return; dispKey = l1 + l2;
+  dispScr.redraw((ctx,w,h) => {
+    ctx.fillStyle = '#04110c'; ctx.fillRect(0,0,w,h); ctx.textAlign = 'center';
+    ctx.fillStyle = S.uv || S.hotDsg ? '#ff7a6e' : '#5bf0a3'; ctx.font = '600 58px "IBM Plex Mono", monospace'; ctx.fillText(l1, w/2, 66);
+    ctx.font = '500 26px "IBM Plex Mono", monospace'; ctx.fillStyle = '#8fd8b5'; ctx.fillText(l2, w/2, 108);
+  });
+}
+let uiTimer = 1;
+function stepSim(dt){
+  const S = BB.sim; if (!S) return;
+  const mT = S.load ? 1 : 0, pT = S.charger ? 1 : 0;
+  if (mate !== mT || plugT !== pT){
+    const d = reduceMotion ? 1 : dt/0.6;
+    mate = approach(mate, mT, d); plugT = approach(plugT, pT, d);
+    placeMovers(); buildAllWires(w => w.id === 'ctrl-pos' || w.id === 'ctrl-neg' || w.id === 'chg-cable');
+    if (mate === mT && plugT === pT) rebuildStreams();
+  }
+  lever.rotation.z = S.sw ? Math.PI/2 : 0;
+  // prop and shaft turn at a visible fraction of the simulated rpm (1/500 of real rev/s keeps it readable on screen)
+  prop.rotation.x += dt * (S.rpm/500) * 2*Math.PI;
+  const blink = (performance.now()/400 | 0) % 2;
+  const chgHex = !S.charger ? 0x241c1c : S.chgPhase === 'CC' ? 0xff3b30 : S.chgPhase === 'CV' ? 0xffa21a : S.chgPhase === 'Full' ? 0x34d058 : (blink ? 0xffa21a : 0x241c1c), chgLit = chgHex !== 0x241c1c;
+  chgLed.material.color.setHex(chgHex).multiplyScalar(chgLit ? 1.6 : 1); chgHalo.visible = chgLit; if (chgLit) chgHalo.material.color.setHex(chgHex);
+  const ctrlOn = S.load && S.sw && S.dsgOn && mate === 1;
+  ctrlLed.material.color.setHex(ctrlOn ? 0x34d058 : 0x1e2a22).multiplyScalar(ctrlOn ? 1.6 : 1); ctrlHalo.visible = ctrlOn; if (ctrlOn) ctrlHalo.material.color.setHex(0x34d058);
+  uiTimer += dt;
+  if (uiTimer > 0.3){
+    uiTimer = 0; drawDisplay();
+    const vf = f1(BB.calc.vFull);
+    chgLabel.element.textContent = !S.charger ? `Charger ${vf} V` : S.chgPhase === 'Full' ? 'Charger · full' : S.chgPhase === 'Blocked' ? 'Charger · blocked' : S.chgPhase === 'off' ? 'Charger · waiting' : `Charger · ${S.chgPhase} ${S.iChg.toFixed(1)} A`;
+    if (currentInfo) showInfo(currentInfo, true);
+  }
+  stepStreams(dt);
+  stepArc(dt);
+  updateMotorSound();
+}
+
+/* ---------------- output-plug arc + sparks (unplugging under load) ---------------- */
+function radialTex(inner, outer){
+  return canvasTex(64, 64, (ctx,w,h) => { const g = ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2); g.addColorStop(0, inner); g.addColorStop(0.35, outer); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(0,0,w,h); }).tx;
+}
+const arcGroup = new THREE.Group(); arcGroup.visible = false; world.add(arcGroup);
+const arcCoreMat = new THREE.MeshBasicMaterial({color:new THREE.Color(0xeef8ff).multiplyScalar(1.6), transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, toneMapped:false});
+const arcGlowMat = new THREE.MeshBasicMaterial({color:new THREE.Color(0x5aa8ff).multiplyScalar(1.2), transparent:true, opacity:0.55, blending:THREE.AdditiveBlending, depthWrite:false, toneMapped:false});
+const arcs = [0,1].map(() => { const core = new THREE.Mesh(new THREE.BufferGeometry(), arcCoreMat), glow = new THREE.Mesh(new THREE.BufferGeometry(), arcGlowMat); core.renderOrder = 6; glow.renderOrder = 5; arcGroup.add(core, glow); return {core, glow}; });
+const arcSprite = new THREE.Sprite(new THREE.SpriteMaterial({map:radialTex('rgba(255,255,255,1)','rgba(120,190,255,0.55)'), color:new THREE.Color(0xbfe0ff).multiplyScalar(1.4), transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, toneMapped:false}));
+arcGroup.add(arcSprite);
+const arcLight = new THREE.PointLight(0x9fd4ff, 0, 520, 0); world.add(arcLight);
+noPick(arcGroup);
+const SPK = 320;
+const spkPos = new Float32Array(SPK*3), spkCol = new Float32Array(SPK*3);
+const spkGeo = new THREE.BufferGeometry();
+spkGeo.setAttribute('position', new THREE.BufferAttribute(spkPos, 3)); spkGeo.setAttribute('color', new THREE.BufferAttribute(spkCol, 3));
+const sparkPts = new THREE.Points(spkGeo, new THREE.PointsMaterial({size:15, map:radialTex('rgba(255,255,255,1)','rgba(255,200,120,0.6)'), vertexColors:true, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true, toneMapped:false}));
+sparkPts.frustumCulled = false; sparkPts.material.color.setScalar(1.5); noPick(sparkPts); world.add(sparkPts);
+const spk = Array.from({length:SPK}, () => ({life:0, max:1, x:0, y:-1e6, z:0, vx:0, vy:0, vz:0}));
+let spkNext = 0, arc = null;
+for (let i=0;i<SPK;i++) spkPos[i*3+1] = -1e6;
+// On a light backdrop an additive glow would vanish, so arcs and sparks switch to solid colours there
+function styleFx(){
+  const solid = !!SC.light, blend = solid ? THREE.NormalBlending : THREE.AdditiveBlending;
+  arcCoreMat.blending = blend; arcCoreMat.needsUpdate = true;
+  arcGlowMat.blending = blend; arcGlowMat.opacity = solid ? 0.6 : 0.55; arcGlowMat.color.setHex(solid ? 0x2f7de0 : 0x5aa8ff).multiplyScalar(solid ? 1 : 1.2); arcGlowMat.needsUpdate = true;
+  sparkPts.material.blending = blend; sparkPts.material.color.setScalar(solid ? 1 : 1.5); sparkPts.material.needsUpdate = true;
+}
+function spawnSpark(x, y, z, k){
+  const s = spk[spkNext]; spkNext = (spkNext + 1) % SPK;
+  const th = Math.random()*Math.PI*2, sp = (250 + Math.random()*1100)*(0.7 + 0.3*k);
+  Object.assign(s, {x, y, z, vx:Math.cos(th)*sp, vz:Math.sin(th)*sp*0.8 + 120, vy:-250 + Math.random()*950, life:0, max:0.25 + Math.random()*0.5});
+}
+function startArc(amps){
+  const k = Math.min(1.6, Math.max(0.5, amps/30));
+  const maxGap = 6 + 7*k;   // the arc stretches until the gap is too wide to sustain it
+  arc = {t:0, k, maxGap, emit:0, dur:Math.min(0.28 + 0.22*k, reduceMotion ? 0.3 : 0.6*maxGap/22 + 0.04)};
+  for (let i=0;i<Math.round(18*k);i++) spawnSpark(Math.random() < 0.5 ? 37 : 51, 55, 330, k);
+  sparkSound(k, arc.dur);
+}
+BB.onArc = startArc;
+function jaggedTube(x, top, bot, r, seed){
+  const n = 8, pts = [];
+  const bow = (Math.random() < 0.5 ? -1 : 1)*(1 + (top-bot)*0.35);
+  for (let j=0;j<=n;j++){
+    const f = j/n, e = j === 0 || j === n ? 0 : 1;
+    pts.push(V(x + e*(Math.sin(Math.PI*f)*bow + (Math.random()-0.5)*2.2), top + (bot-top)*f, 330 + e*(Math.random()-0.5)*2.2));
+  }
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 18, r, 5, false);
+}
+function stepArc(dt){
+  let live = 0, touched = false;
+  for (let i=0;i<SPK;i++){
+    const s = spk[i];
+    if (s.y < -9000) continue;
+    touched = true; s.life += dt;
+    if (s.life >= s.max){ s.y = -1e6; spkPos[i*3+1] = -1e6; spkCol[i*3] = spkCol[i*3+1] = spkCol[i*3+2] = 0; continue; }
+    live++;
+    s.vy -= 6500*dt; s.x += s.vx*dt; s.y += s.vy*dt; s.z += s.vz*dt;
+    if (s.y < -17.5){ s.y = -17.5; s.vy = -s.vy*0.35; s.vx *= 0.5; s.vz *= 0.5; }
+    const f = s.life/s.max, fade = 1 - f;
+    spkPos[i*3] = s.x; spkPos[i*3+1] = s.y; spkPos[i*3+2] = s.z;
+    if (SC.light){ spkCol[i*3] = 1 - 0.45*f; spkCol[i*3+1] = 0.8 - 0.72*f; spkCol[i*3+2] = 0.45 - 0.43*f; }   // embers darken instead of fading
+    else { spkCol[i*3] = fade; spkCol[i*3+1] = (0.92 - 0.55*f)*fade; spkCol[i*3+2] = (0.65 - 0.6*f)*fade; }
+  }
+  if (touched || arc){ spkGeo.attributes.position.needsUpdate = true; spkGeo.attributes.color.needsUpdate = true; }
+  if (!arc){ arcGroup.visible = false; arcLight.intensity = 0; return; }
+  arc.t += dt;
+  const top = 56, bot = xtB.position.y + 17, gap = Math.max(0, top - bot);
+  const burning = arc.t < arc.dur && (gap < arc.maxGap || arc.t < 0.15);
+  if (!burning){ arcGroup.visible = false; arcLight.intensity = 0; if (arc.t > arc.dur + 0.3) arc = null; return; }
+  arcGroup.visible = true;
+  const flick = 0.55 + Math.random()*0.9, g = Math.max(gap, 1.2);
+  arcs.forEach((a, i) => {
+    const x = i ? 51 : 37;
+    a.core.geometry.dispose(); a.glow.geometry.dispose();
+    a.core.geometry = jaggedTube(x, top, top - g, 0.7, i); a.glow.geometry = jaggedTube(x, top, top - g, 2.6, i);
+  });
+  arcSprite.position.set(44, top - g/2, 338); arcSprite.scale.setScalar((45 + 55*arc.k)*flick);
+  arcSprite.material.opacity = Math.min(1, 0.6 + 0.4*flick);
+  arcLight.position.set(44, top - g/2, 350); arcLight.intensity = 7*arc.k*flick;
+  arc.emit += dt*520*arc.k;
+  while (arc.emit >= 1){ arc.emit -= 1; spawnSpark(Math.random() < 0.5 ? 37 : 51, top - Math.random()*g, 330 + (Math.random()-0.5)*4, arc.k); }
+}
+
+/* ---------------- sound: motor hum and arc / spark noise (Web Audio, synthesised) ---------------- */
+let actx = null, master = null, noiseBuf = null, motorSnd = null, soundOn = true;
+let volume = 0.7;   // slider position, 0 to 1
+try { const v = parseFloat(localStorage.getItem('bb-vol')); if (v >= 0 && v <= 1) volume = v; } catch (e) {}
+const volGain = () => Math.pow(volume, 1.5)*1.2;   // loudness curve: the slider feels even from quiet to loud
+function ensureAudio(){
+  if (!soundOn) return null;
+  try {
+    if (!actx){
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+      actx = new AC(); master = actx.createGain(); master.gain.value = volGain(); master.connect(actx.destination);
+      const len = actx.sampleRate*2; noiseBuf = actx.createBuffer(1, len, actx.sampleRate);
+      const d = noiseBuf.getChannelData(0); for (let i=0;i<len;i++) d[i] = Math.random()*2 - 1;
+    }
+    if (actx.state === 'suspended') actx.resume().catch(() => {});
+    if (!motorSnd) startMotorSound();
+  } catch (e) { return null; }
+  return actx;
+}
+['pointerdown','keydown'].forEach(ev => window.addEventListener(ev, () => ensureAudio(), {capture:true}));
+function startMotorSound(){
+  const ctx = actx;
+  const out = ctx.createGain(); out.gain.value = 0;
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1500; lp.Q.value = 0.8;
+  lp.connect(out); out.connect(master);
+  const o1 = ctx.createOscillator(); o1.type = 'sawtooth'; const g1 = ctx.createGain(); g1.gain.value = 0.45; o1.connect(g1); g1.connect(lp);
+  const o2 = ctx.createOscillator(); o2.type = 'triangle'; const g2 = ctx.createGain(); g2.gain.value = 0.35; o2.connect(g2); g2.connect(lp);
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 6.5; const lfoG = ctx.createGain(); lfoG.gain.value = 10; lfo.connect(lfoG); lfoG.connect(o1.detune); lfoG.connect(o2.detune);
+  const nz = ctx.createBufferSource(); nz.buffer = noiseBuf; nz.loop = true;
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 300; bp.Q.value = 0.8;
+  const gn = ctx.createGain(); gn.gain.value = 0; nz.connect(bp); bp.connect(gn); gn.connect(out);
+  [o1, o2, lfo, nz].forEach(n => n.start());
+  motorSnd = {out, o1, o2, bp, gn, lp};
+}
+function updateMotorSound(){
+  if (!actx || !motorSnd) return;
+  const rpm = BB.sim.rpm, t = actx.currentTime, run = soundOn && rpm > 3;
+  const fe = Math.max(25, rpm/60*7);   // electrical frequency of a 14-pole motor
+  motorSnd.o1.frequency.setTargetAtTime(fe, t, 0.05);
+  motorSnd.o2.frequency.setTargetAtTime(fe*2, t, 0.05);
+  motorSnd.bp.frequency.setTargetAtTime(180 + rpm*0.25, t, 0.1);
+  motorSnd.gn.gain.setTargetAtTime(Math.min(0.9, rpm/2500), t, 0.1);
+  motorSnd.lp.frequency.setTargetAtTime(800 + rpm*0.9, t, 0.1);
+  motorSnd.out.gain.setTargetAtTime(run ? 0.05 + 0.11*Math.min(1, rpm/3000) : 0, t, 0.08);
+}
+function sparkSound(k, arcDur){
+  const ctx = ensureAudio(); if (!ctx || !noiseBuf) return;
+  const t0 = ctx.currentTime + 0.01, vol = Math.min(1, 0.45 + 0.35*k);
+  // snap as the contacts let go
+  const o = ctx.createOscillator(); o.type = 'square';
+  o.frequency.setValueAtTime(1400, t0); o.frequency.exponentialRampToValueAtTime(80, t0 + 0.06);
+  const og = ctx.createGain(); og.gain.setValueAtTime(0.3*vol, t0); og.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.08);
+  o.connect(og); og.connect(master); o.start(t0); o.stop(t0 + 0.1);
+  // arc sizzle while the gap is burning
+  const s1 = ctx.createBufferSource(); s1.buffer = noiseBuf;
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3200; bp.Q.value = 0.9;
+  const sg = ctx.createGain(); sg.gain.setValueAtTime(0.0001, t0); sg.gain.linearRampToValueAtTime(0.5*vol, t0 + 0.012);
+  for (let t = t0 + 0.02; t < t0 + arcDur; t += 0.012 + Math.random()*0.018) sg.gain.setValueAtTime((0.25 + Math.random()*0.5)*vol, t);
+  sg.gain.setValueAtTime(0.3*vol, t0 + arcDur); sg.gain.exponentialRampToValueAtTime(0.0005, t0 + arcDur + 0.09);
+  s1.connect(bp); bp.connect(sg); sg.connect(master); s1.start(t0, Math.random()); s1.stop(t0 + arcDur + 0.12);
+  // crackle of the flying sparks
+  const s2 = ctx.createBufferSource(); s2.buffer = noiseBuf;
+  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2200;
+  const cg = ctx.createGain(); cg.gain.setValueAtTime(0.0001, t0);
+  const end = t0 + arcDur + 0.45;
+  for (let t = t0 + 0.01; t < end; t += 0.018 + Math.random()*0.045){
+    const a = (0.2 + Math.random()*0.8)*vol*0.7*(1 - (t - t0)/(end - t0)*0.7);
+    cg.gain.setValueAtTime(a, t); cg.gain.exponentialRampToValueAtTime(0.0008, t + 0.004 + Math.random()*0.012);
+  }
+  s2.connect(hp); hp.connect(cg); cg.connect(master); s2.start(t0, Math.random()); s2.stop(end + 0.05);
+}
+
+/* ---------------- info card, selection ---------------- */
+const card = document.getElementById('info'), tip = document.getElementById('tip'), hint = document.getElementById('hint');
+let currentInfo = null, actsKey = '';
+function showInfo(fn, soft){
+  if (!fn){ currentInfo = null; card.hidden = true; hint.hidden = false; return; }
+  const inf = fn();
+  if (soft && !inf.live) return;
+  currentInfo = fn;
+  document.getElementById('info-kicker').textContent = inf.kicker || '';
+  document.getElementById('info-title').textContent = inf.title;
+  document.getElementById('info-rows').innerHTML = (inf.rows||[]).map(([k,v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  const note = document.getElementById('info-note'); note.textContent = inf.note || ''; note.hidden = !inf.note;
+  const key = (inf.acts||[]).map(a => a[0]).join('|');
+  if (!soft || key !== actsKey){
+    actsKey = key; const acts = document.getElementById('info-acts'); acts.innerHTML = '';
+    (inf.acts||[]).forEach(([l,f]) => { const b = document.createElement('button'); b.textContent = l; b.addEventListener('click', f); acts.appendChild(b); });
+  }
+  card.hidden = false; hint.hidden = true;
+}
+document.getElementById('info-x').addEventListener('click', () => api.clear());
+let selMats = [];
+function clearEmph(){ selMats.forEach(({m,c,i}) => { m.emissive.setHex(c); m.emissiveIntensity = i; }); selMats = []; }
+function emphasize(...objs){
+  const seen = new Set(selMats.map(s => s.m));
+  objs.forEach(obj => obj && obj.traverse(o => {
+    if (o.isMesh && !o.isInstancedMesh && o.material && o.material.emissive && !seen.has(o.material)){
+      seen.add(o.material); selMats.push({m:o.material, c:o.material.emissive.getHex(), i:o.material.emissiveIntensity});
+      o.material.emissive.setHex(ACCENT); o.material.emissiveIntensity = 0.5;
+    }
+  }));
+}
+function dimWires(ids){
+  wires.forEach(w => {
+    const on = !ids || ids.includes(w.id);
+    w.mat.transparent = !on; w.mat.opacity = on ? 1 : 0.12; w.mat.depthWrite = on;
+    w.mat.emissive.setHex(ids && on ? ACCENT : 0); w.mat.emissiveIntensity = ids && on ? 0.35 : 0; w.mat.needsUpdate = true;
+  });
+}
+function resetAll(){ clearEmph(); dimWires(null); if (hlGroup){ hlGroup = 0; paintCells(); } }
+
+/* ---------------- picking ---------------- */
+const raycaster = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+function pickAt(ev){
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((ev.clientX - r.left)/r.width)*2 - 1, -((ev.clientY - r.top)/r.height)*2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObject(world, true);
+  for (const h of hits){
+    if (!chainVisible(h.object)) continue;
+    if (h.object.material && h.object.material.transparent && h.object.material.opacity < 0.3) continue;
+    if (h.object.isInstancedMesh && h.object.userData.cellOf && h.instanceId != null){ const ci = h.object.userData.cellOf(h.instanceId); return {kind:'cell', ci, info:() => cellInfo(ci)}; }
+    let o = h.object; while (o && !o.userData.info) o = o.parent;
+    if (o) return {kind:'obj', obj:o, info:o.userData.info};
+  }
+  return null;
+}
+let downPos = null, hoverQueued = null;
+renderer.domElement.addEventListener('pointerdown', e => { downPos = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downPos || Math.hypot(e.clientX-downPos[0], e.clientY-downPos[1]) > 5) return;
+  const hit = pickAt(e);
+  resetAll();
+  if (!hit){ showInfo(null); return; }
+  if (hit.kind === 'cell'){ hlGroup = cells[hit.ci].k; paintCells(); showInfo(hit.info); return; }
+  const w = wires.find(w => w.mesh === hit.obj);
+  if (w){ if (w.kind==='balance'){ api.highlightBalance(+w.id.slice(3)); return; } dimWires([w.id]); }
+  else emphasize(hit.obj);
+  showInfo(hit.info);
+});
+renderer.domElement.addEventListener('pointermove', e => { hoverQueued = e; });
+renderer.domElement.addEventListener('pointerleave', () => { hoverQueued = null; });
+function doHover(){
+  // hovering only changes the cursor to show a part can be clicked; names and details appear when you click
+  if (!hoverQueued) return; const e = hoverQueued; hoverQueued = null;
+  if (e.buttons) return;
+  renderer.domElement.style.cursor = pickAt(e) ? 'pointer' : 'grab';
+}
+
+/* ---------------- camera views ---------------- */
+const TARGET = V(60, 40, 160); let FIT_R = 350;
+const DIRS = {iso:V(0.62,0.5,0.78), top:V(0.0001,1,0.03), front:V(0.06,0.2,1), side:V(1,0.22,0.02), rear:V(-0.55,0.6,-0.85), bottom:V(0.0001,-1,0.03)};
+function fitDist(){ const vf = camera.fov*Math.PI/180; const hf = 2*Math.atan(Math.tan(vf/2)*camera.aspect); return FIT_R/Math.sin(Math.min(vf,hf)/2); }
+let camTween = null;
+function goView(name, instant){
+  const d1 = DIRS[name].clone().normalize(), r1 = fitDist();
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view===name));
+  if (instant || reduceMotion){ camera.position.copy(TARGET).addScaledVector(d1, r1); controls.target.copy(TARGET); controls.update(); return; }
+  // swing around the model on an arc instead of cutting through it
+  const off0 = camera.position.clone().sub(controls.target), r0 = off0.length() || 1, d0 = off0.clone().divideScalar(r0);
+  camTween = {t:0, t0:controls.target.clone(), t1:TARGET.clone(), d0, r0, r1, q:new THREE.Quaternion().setFromUnitVectors(d0, d1)};
+}
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => goView(b.dataset.view)));
+
+/* ---------------- toolbar ---------------- */
+const btnFlow = document.getElementById('btn-flow'), btnX = document.getElementById('btn-xray'), btnLid = document.getElementById('btn-lid'), btnLabels = document.getElementById('btn-labels');
+let xray = false;
+function setXray(on){
+  xray = on; btnX.setAttribute('aria-pressed', on);
+  [bodyMat, ...holderMats].forEach(m => { if (!m) return; m.transparent = on; m.opacity = on ? (m===bodyMat ? 0.22 : 0.25) : 1; m.depthWrite = !on; m.needsUpdate = true; });
+}
+btnX.addEventListener('click', () => setXray(!xray));
+btnFlow.addEventListener('click', () => { flowOn = !flowOn; btnFlow.setAttribute('aria-pressed', flowOn); });
+btnLid.addEventListener('click', () => { const cb = document.getElementById('ly-lid'); cb.checked = !cb.checked; api.setLayer('lid', cb.checked); });
+const btnSound = document.getElementById('btn-sound'), volIn = document.getElementById('vol'), volOut = document.getElementById('vol-o');
+function showVol(){ volIn.value = Math.round(volume*100); volOut.textContent = soundOn ? `${Math.round(volume*100)}%` : 'off'; }
+btnSound.addEventListener('click', () => {
+  soundOn = !soundOn; btnSound.setAttribute('aria-pressed', soundOn);
+  if (soundOn) ensureAudio(); else if (motorSnd && actx) motorSnd.out.gain.setTargetAtTime(0, actx.currentTime, 0.05);
+  showVol();
+});
+volIn.addEventListener('input', () => {
+  volume = volIn.value/100; try { localStorage.setItem('bb-vol', String(volume)); } catch (e) {}
+  if (volume > 0 && !soundOn){ soundOn = true; btnSound.setAttribute('aria-pressed', true); }   // moving the slider up also switches sound back on
+  ensureAudio(); if (master && actx) master.gain.setTargetAtTime(volGain(), actx.currentTime, 0.03);
+  showVol();
+});
+// Busbars: one switch for the nickel strips (top and bottom) and the copper tabs and U-turn bus
+const btnBus = document.getElementById('btn-bus'), BUS_LAYERS = ['stripsTop', 'stripsBottom', 'copper'];
+const busShown = () => BUS_LAYERS.some(l => document.getElementById('ly-' + l).checked);
+function syncBusBtn(){ btnBus.setAttribute('aria-pressed', busShown()); }
+btnBus.addEventListener('click', () => {
+  const on = !busShown();
+  for (const l of BUS_LAYERS){ document.getElementById('ly-' + l).checked = on; api.setLayer(l, on); }
+});
+function syncLabelsBtn(){ btnLabels.setAttribute('aria-pressed', labelOn.comp || labelOn.tap || labelOn.grp); }
+btnLabels.addEventListener('click', () => {
+  const on = !(labelOn.comp || labelOn.tap || labelOn.grp);
+  for (const k of ['comp','tap','grp']){ labelOn[k] = on; document.getElementById('lb-'+k).checked = on; }
+  syncLabelsBtn();
+});
+const exp = document.getElementById('explode');
+let expQueued = null; exp.addEventListener('input', () => { expQueued = exp.value/100; });
+function applyExplode(t){
+  explodeT = t;
+  for (const [k,g] of Object.entries(X)) g.position.y = EXP[k]*t;
+  buildAllWires(); rebuildStreams();
+}
+
+/* ---------------- build / rebuild the pack ---------------- */
+function buildPack(){
+  clearPackLabels();
+  PACK_GROUPS.forEach(clearGroup);
+  wires.filter(w => w.pack).forEach(removeWire);
+  if (selMats.length) selMats = [];
+  hlGroup = 0;
+  G = layout();
+  buildEnclosure(); buildCells(); buildStrips(); buildNTC(); addPackWires();
+  gLoadMov.position.x = G.OX; gChgMov.position.x = -G.OX;
+  buildConn(); placeMovers(); buildAllWires(); rebuildStreams();
+  dimWires(null); setXray(xray); paintCells(); drawBmsPlate();
+  TARGET.set(60, 40, (G.BX.z0 + 490)/2);
+  FIT_R = 350 + G.OX + Math.max(0, -170 - G.BX.z0)/2;
+  fitShadow(60, (G.BX.z0 + 470)/2, Math.max(560 + G.OX, (470 - G.BX.z0)/2 + 60)*1.08);
+  { const u = underView; underView = null; setUnder(!!u); }
+  BB.lengths = Object.fromEntries(wires.map(w => [w.id, w.len]));
+  BB.refreshWiring && BB.refreshWiring();
+}
+
+/* ---------------- public API for the panel ---------------- */
+const api = {
+  setLayer(name, on){ (LAYERS[name]||[]).forEach(o => o.visible = on); if (name==='lid') btnLid.setAttribute('aria-pressed', on); if (BUS_LAYERS.includes(name)) syncBusBtn(); },
+  setLabels(cat, on){ labelOn[cat] = on; syncLabelsBtn(); },
+  setCellColor(mode){ cellColorMode = mode; paintCells(); },
+  highlightGroup(k){ if (k > G.S) return; resetAll(); hlGroup = k; paintCells(); showInfo(() => groupInfo(k)); },
+  highlightBalance(k){
+    if (k > G.S) return;
+    resetAll(); dimWires(['bal'+k]); emphasize(nodes[k].grp, ...nodes[k].extra);
+    const lay = nodes[k].side==='top' ? 'stripsTop' : 'stripsBottom';
+    for (const l of [lay, 'balance']){ const cb = document.getElementById('ly-'+l); if (!cb.checked){ cb.checked = true; api.setLayer(l, true); } }
+    showInfo(() => balInfo(k));
+  },
+  highlightWires(ids){
+    resetAll(); dimWires(ids);
+    const w = wireById[ids[0]]; const lay = w.parent === gCharge ? 'charge' : w.parent === gSense ? 'sense' : w.parent === gLoad ? 'load' : w.parent === gCharger ? 'charger' : 'main';
+    const cb = document.getElementById('ly-'+lay); if (!cb.checked){ cb.checked = true; api.setLayer(lay, true); }
+    showInfo(w.info);
+  },
+  clear(){ resetAll(); showInfo(null); },
+  onCalc(c){
+    if (!G || c.S !== G.S || c.P !== G.P || c.fmt !== G.fmt){ api.clear(); buildPack(); return; }
+    drawBmsPlate(); drawWrap(); buildConn(); buildAllWires(w => w.kind==='main' || w.kind==='charge');
+    if (currentInfo) showInfo(currentInfo);
+  }
+};
+BB.scene = api;
+
+/* ---------------- init ---------------- */
+{ let first = 0; try { const k = SCENES.findIndex(x => x.id === localStorage.getItem('bb-scene')); if (k >= 0) first = k; } catch (e) {}
+  applyScene(first); }
+buildPack();
+document.querySelectorAll('#toggles input[data-layer]').forEach(i => api.setLayer(i.dataset.layer, i.checked));
+['comp','tap','grp'].forEach(k => labelOn[k] = document.getElementById('lb-'+k).checked); syncLabelsBtn(); syncBusBtn(); showVol();
+const ccSel = document.querySelector('input[name="cc"]:checked'); if (ccSel && ccSel.value !== 'group') api.setCellColor(ccSel.value);
+
+function resize(){
+  const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
+  renderer.setSize(w, h, false); labelRenderer.setSize(w, h);
+  if (composer){ composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); }
+  camera.aspect = w/h; camera.updateProjectionMatrix();
+}
+
+// pr(d): how many rendered pixels per screen pixel, given the display's own ratio d. Ultra renders above screen resolution and scales down, which smooths every edge.
+const QUALITY = {
+  ultra:  {pr:d => Math.min(2.5, Math.max(1.5, d*1.5)), shadow:4096, ao:true,  aoSamples:24, msaa:4},
+  high:   {pr:d => Math.min(d, 2),                      shadow:4096, ao:true,  aoSamples:16, msaa:4},
+  medium: {pr:d => Math.min(d, 2),                      shadow:2048, ao:false, aoSamples:0,  msaa:0},
+  low:    {pr:d => 1,                                   shadow:1024, ao:false, aoSamples:0,  msaa:0}
+};
+let userQuality = null;
+try { const s = localStorage.getItem('bb-quality'); if (QUALITY[s]) userQuality = s; } catch (e) {}
+let qName = userQuality || (matchMedia('(pointer: coarse)').matches ? 'medium' : 'high');
+let Q = QUALITY[qName], composer = null, aoPass = null, post = null;
+const qSel = document.getElementById('quality');
+// ambient occlusion should see the parts inside the box, so see-through and glowing things are hidden from its depth/normal pass
+function hideForAO(){
+  const hidden = [];
+  scene.traverse(o => {
+    if (!o.visible || o === ground) return;
+    if ((o.isMesh || o.isPoints || o.isLine || o.isSprite) && o.material && (o.material.transparent || o.userData.noAO || o.isLine || o.isPoints || o.isSprite)){ o.visible = false; hidden.push(o); }
+  });
+  return hidden;
+}
+function buildComposer(){
+  if (composer){ try { composer.dispose(); } catch (e) {} composer = null; aoPass = null; }
+  if (!post || !Q.ao) return;
+  try {
+    const w = stage.clientWidth || 800, h = stage.clientHeight || 600;
+    const rt = new THREE.WebGLRenderTarget(w, h, {type:THREE.HalfFloatType, samples:Q.msaa});
+    composer = new post.EffectComposer(renderer, rt);
+    composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h);
+    composer.addPass(new post.RenderPass(scene, camera));
+    aoPass = new post.GTAOPass(scene, camera, w, h);
+    aoPass.updateGtaoMaterial({radius:16, distanceExponent:1.2, thickness:6, scale:1.1, samples:Q.aoSamples, distanceFallOff:1, screenSpaceRadius:false});
+    aoPass.updatePdMaterial({lumaPhi:10, depthPhi:2, normalPhi:3, radius:6, radiusExponent:1, rings:2, samples:16});
+    aoPass.blendIntensity = 0.8;
+    const base = aoPass.render.bind(aoPass);
+    aoPass.render = (...args) => { const hidden = hideForAO(); try { base(...args); } finally { hidden.forEach(o => { o.visible = true; }); } };
+    composer.addPass(aoPass);
+    composer.addPass(new post.OutputPass());
+  } catch (e) { console.warn('Contact shading unavailable; using plain rendering', e); composer = null; aoPass = null; }
+}
+function applyQuality(name, fromUser){
+  qName = name; Q = QUALITY[name]; if (qSel) qSel.value = name;
+  if (fromUser){ userQuality = name; try { localStorage.setItem('bb-quality', name); } catch (e) {} }
+  renderer.setPixelRatio(Q.pr(window.devicePixelRatio || 1));
+  sun.shadow.mapSize.set(Q.shadow, Q.shadow);
+  if (sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map = null; }
+  buildComposer(); resize();
+  perf = {t:0, n:0, warm:0};
+}
+let perf = {t:0, n:0, warm:0};
+if (qSel) qSel.addEventListener('change', () => applyQuality(qSel.value, true));
+Promise.all([
+  import('three/addons/postprocessing/EffectComposer.js'),
+  import('three/addons/postprocessing/RenderPass.js'),
+  import('three/addons/postprocessing/OutputPass.js'),
+  import('three/addons/postprocessing/GTAOPass.js')
+]).then(([a, b, c, d]) => {
+  post = {EffectComposer:a.EffectComposer, RenderPass:b.RenderPass, OutputPass:c.OutputPass, GTAOPass:d.GTAOPass};
+  buildComposer(); resize();
+}).catch(e => console.warn('Contact-shading modules failed to load; using plain rendering', e));
+// if the picked quality cannot hold a smooth frame rate, step down once (only when the viewer has not chosen a level)
+function watchPerf(raw){
+  if (userQuality || qName === 'low' || raw > 0.25) return;
+  perf.warm += raw; if (perf.warm < 2) return;
+  perf.t += raw; perf.n++;
+  if (perf.t < 4) return;
+  const fps = perf.n/perf.t; perf = {t:0, n:0, warm:0};
+  if (fps < 24){ applyQuality(qName === 'ultra' ? 'high' : qName === 'high' ? 'medium' : 'low'); BB.toast && BB.toast(`Graphics stepped down to ${qName[0].toUpperCase() + qName.slice(1)} to keep the 3D view smooth. Change it with Quality in the toolbar.`); }
+}
+new ResizeObserver(resize).observe(stage);
+applyQuality(qName);
+goView('iso', true);
+
+const clock = new THREE.Clock();
+function frame(){
+  const raw = clock.getDelta(), dt = Math.min(raw, 0.05);
+  watchPerf(raw);
+  if (expQueued !== null){ applyExplode(expQueued); expQueued = null; }
+  if (camTween){
+    camTween.t = Math.min(1, camTween.t + dt/0.8); const e = 1 - Math.pow(1 - camTween.t, 3);
+    const tg = camTween.t0.clone().lerp(camTween.t1, e), q = new THREE.Quaternion().slerp(camTween.q, e);
+    camera.position.copy(tg).addScaledVector(camTween.d0.clone().applyQuaternion(q), camTween.r0 + (camTween.r1 - camTween.r0)*e);
+    controls.target.copy(tg);
+    if (camTween.t >= 1) camTween = null;
+  }
+  controls.update();
+  dome.position.copy(camera.position);
+  const camDist = camera.position.distanceTo(controls.target);
+  scene.fog.near = camDist*1.5 + 400; scene.fog.far = camDist*1.5 + 6000;   // the model stays clear at any zoom; only the far floor fades into the horizon
+  setUnder(camera.position.y < FLOOR_Y - 2);
+  doHover(); stepSim(dt);
+  for (const L of labels) L.o.visible = labelOn[L.cat] && chainVisible(L.owner);
+  if (composer) composer.render(dt); else renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+document.getElementById('loadmsg').remove();
+BB.sceneReady = true;
+</script>
+</body>
+</html>

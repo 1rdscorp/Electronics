@@ -139,7 +139,12 @@ a{color:inherit}
     const id = decodeURIComponent(location.hash.replace(/^#\/?/, ""));
     const lab = labs.find(l => l.id === id);
     $("home").hidden = !!lab;
-    Object.values(frames).forEach(f => f.hidden = true);
+    labs.forEach(l => {
+      const f = frames[l.id];
+      if (!f || l === lab) return;
+      if (l.keepAlive === false) { f.remove(); delete frames[l.id]; } // stop heavy labs (3D, audio) on leave
+      else f.hidden = true;
+    });
     if (lab) {
       const f = frameFor(lab);
       f.hidden = false;

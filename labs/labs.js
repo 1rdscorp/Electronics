@@ -14,6 +14,9 @@
  *   topics   (optional) short tags shown on the home card
  *   accent   (optional) a CSS color for the card and the active nav tab
  *   short    (optional) a shorter name for the nav bar on narrow screens
+ *   keepAlive (optional) labs stay loaded in the background after you leave them, so their
+ *            settings survive. Set to false for heavy labs (3D, sound) so they are unloaded
+ *            on leave and stop using the GPU and speakers.
  */
 window.LABS = [
   {
@@ -33,5 +36,15 @@ window.LABS = [
     summary: "An NPN BJT amplifier workbench: common emitter, base and collector, with load lines, a triggered scope and the formulas filled in with your numbers.",
     topics: ["Common emitter", "Common base", "Common collector", "Biasing"],
     accent: "#22d3ee"
+  },
+  {
+    id: "battery-box",
+    title: "E-Boat Battery Box",
+    short: "Battery",
+    file: "labs/eboat-battery-box.html",
+    summary: "An interactive 3D build model of a 14S10P pack of 140 × 21700 cells. Orbit, explode and X-ray it, then watch current flow through busbars, fuses and the BMS in a live charge and discharge simulation.",
+    topics: ["3D model", "14S10P", "21700 cells", "BMS", "Busbars"],
+    accent: "#56e0c8",
+    keepAlive: false
   }
 ];

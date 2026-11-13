@@ -26,7 +26,8 @@ Each lab loads in its own frame, so labs can't break each other's styles or scri
   file: "labs/rc-filter.html",
   summary: "Sweep the frequency and watch the corner appear.",
   topics: ["Low-pass", "High-pass"], // optional tags on the home card
-  accent: "#b49dff"                // optional color for the card and nav tab
+  accent: "#b49dff",               // optional color for the card and nav tab
+  keepAlive: false                 // optional: unload when you leave (use for 3D / sound labs)
 }
 ```
 
