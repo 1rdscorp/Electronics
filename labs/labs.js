@@ -46,5 +46,15 @@ window.LABS = [
     topics: ["3D model", "14S10P", "21700 cells", "BMS", "Busbars"],
     accent: "#56e0c8",
     keepAlive: false
+  },
+  {
+    id: "atom",
+    title: "Atom Explorer",
+    short: "Atom",
+    file: "labs/atom-explorer.html",
+    summary: "Take an atom apart in 3D: add protons, neutrons and electrons, switch between Bohr shells and orbital clouds, zoom in to quarks, then bond atoms into molecules.",
+    topics: ["Periodic table", "Isotopes", "Ions", "Orbitals", "Molecules"],
+    accent: "#a98bff",
+    keepAlive: false
   }
 ];
