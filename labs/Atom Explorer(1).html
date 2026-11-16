@@ -1,0 +1,2731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atom Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Layout: three panes on one dark lab bench: controls | 3D chamber | field notes */
+  --ink:#0a0f1d;
+  --bench:#10182b;
+  --raise:#18223b;
+  --rule:#26334f;
+  --text:#e8ecf6;
+  --dim:#9aa5c0;
+  --sodium:#ffb547;
+  /* particle + data colors */
+  --proton:#ff5a5f; --neutron:#aeb9d6; --electron:#46c8ff; --up:#ffe08a; --down:#5ee0d0;
+  --orb-s:#59d4ff; --orb-p:#a98bff; --orb-d:#ff7fb8; --orb-f:#77e6b5;
+  --good:#5fd39a; --warn:#ff8a6b;
+  --font-display:"Bricolage Grotesque","Avenir Next Condensed","Arial Narrow",system-ui,sans-serif;
+  --font-body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--ink);color:var(--text);font:15px/1.5 var(--font-body);display:flex;flex-direction:column;overflow:hidden;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+h1,h2,h3{font-family:var(--font-display);text-wrap:balance;margin:0}
+:focus-visible{outline:2px solid var(--sodium);outline-offset:2px}
+[hidden]{display:none !important}
+
+/* ---------- header ---------- */
+.top{display:flex;align-items:center;gap:20px;padding:10px 18px;border-bottom:1px solid var(--rule);background:var(--bench);flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;margin-right:auto}
+.brand svg{flex:none}
+.brand h1{font-size:23px;font-weight:780;letter-spacing:-0.02em;line-height:1}
+.brand p{margin:2px 0 0;color:var(--dim);font-size:13px}
+.modes{display:flex;background:var(--ink);border:1px solid var(--rule);border-radius:999px;padding:3px}
+.modes button{border:0;background:none;padding:7px 16px;border-radius:999px;font-weight:700;font-size:14px;cursor:pointer;color:var(--dim)}
+.modes button[aria-selected="true"]{background:var(--raise);color:var(--text);box-shadow:inset 0 0 0 1px var(--rule)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--raise);border:1px solid var(--rule);border-radius:8px;padding:7px 12px;font-weight:700;font-size:13px;cursor:pointer;line-height:1.2}
+.btn:hover{border-color:#3a4a70}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.accent{background:var(--sodium);border-color:var(--sodium);color:#1d1404}
+.btn.accent:hover{filter:brightness(1.06)}
+
+/* ---------- layout ---------- */
+.app{flex:1;min-height:0;display:grid;grid-template-columns:292px minmax(0,1fr) 372px;grid-template-areas:"controls stage notes"}
+.panel{min-height:0;overflow-y:auto;background:var(--bench);scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
+.controls{grid-area:controls;border-right:1px solid var(--rule)}
+.notes{grid-area:notes;border-left:1px solid var(--rule)}
+.stage{grid-area:stage;position:relative;min-width:0;min-height:0;overflow:hidden;background:var(--ink)}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+
+.block{padding:16px 18px;border-bottom:1px solid var(--rule);display:grid;gap:10px}
+.block h2{font-size:15px;font-weight:720;letter-spacing:-0.005em}
+.help{margin:-4px 0 0;color:var(--dim);font-size:13px;line-height:1.45}
+
+/* element picker */
+.el-pick{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--raise);border:1px solid var(--rule);border-radius:10px;padding:8px 10px;cursor:pointer}
+.el-pick:hover{border-color:#3a4a70}
+.el-pick .sym{width:46px;height:46px;border-radius:8px;display:grid;place-items:center;font:800 24px/1 var(--font-display);background:var(--ink);border:1.5px solid var(--cat,#6fb2ff)}
+.el-pick b{display:block;font-size:16px}
+.el-pick small{color:var(--dim);font-size:12px}
+.quick{display:flex;flex-wrap:wrap;gap:5px}
+.quick button{min-width:36px;padding:5px 7px;border-radius:7px;border:1px solid var(--rule);background:var(--ink);font:600 13px var(--font-mono);cursor:pointer}
+.quick button[aria-pressed="true"]{border-color:var(--sodium);color:var(--sodium)}
+
+/* steppers */
+.stepper{display:grid;grid-template-columns:1fr 34px 46px 34px;align-items:center;gap:6px;border-radius:10px;padding:2px}
+.stepper .lab{display:flex;align-items:center;gap:9px;font-weight:700;font-size:14px;line-height:1.15}
+.stepper .lab small{display:block;font-weight:400;color:var(--dim);font-size:12px}
+.stepper button{height:34px;border-radius:8px;border:1px solid var(--rule);background:var(--raise);font-size:19px;font-weight:700;cursor:pointer;touch-action:manipulation;user-select:none}
+.stepper button:hover{border-color:#3a4a70}
+.stepper output{text-align:center;font:600 18px var(--font-mono);font-variant-numeric:tabular-nums}
+.sw{width:12px;height:12px;border-radius:50%;flex:none;display:inline-block}
+.sw.p{background:var(--proton)} .sw.n{background:var(--neutron)} .sw.e{background:var(--electron)} .sw.v{background:var(--sodium)}
+.sw.u{background:var(--up)} .sw.d{background:var(--down)} .sw.ring{background:none;border:2px solid #7d93d6} .sw.cloud{background:radial-gradient(circle,var(--orb-p),transparent 70%)}
+.sw.lbl{background:none;border:1.5px solid var(--text);border-radius:3px}
+.pulse{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,181,71,0)}50%{box-shadow:0 0 0 3px rgba(255,181,71,.55)}}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row .btn{flex:1}
+
+/* segmented */
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.seg button{border:1px solid var(--rule);background:var(--ink);border-radius:9px;padding:8px 10px;text-align:left;cursor:pointer;font-weight:700;font-size:14px;line-height:1.2}
+.seg button small{display:block;font-weight:400;font-size:12px;color:var(--dim)}
+.seg button[aria-checked="true"]{border-color:var(--sodium);background:rgba(255,181,71,.08)}
+
+/* checkboxes */
+.chks{display:grid;gap:2px}
+.chk{display:flex;align-items:center;gap:10px;padding:5px 2px;cursor:pointer;font-size:14px;border-radius:6px}
+.chk input{accent-color:var(--sodium);width:16px;height:16px;margin:0;flex:none}
+.chk small{color:var(--dim);font-size:12px;margin-left:auto;text-align:right}
+.shells{display:flex;flex-wrap:wrap;gap:5px}
+.shells button{padding:4px 8px;border-radius:7px;border:1px solid var(--rule);background:var(--ink);font:500 12px var(--font-mono);cursor:pointer;color:var(--dim)}
+.shells button[aria-pressed="true"]{color:var(--text);border-color:#4a5d8f}
+.shells button.outer[aria-pressed="true"]{border-color:var(--sodium);color:var(--sodium)}
+.sublabel{font-size:12px;color:var(--dim);margin-top:4px}
+input[type=range]{width:100%;accent-color:var(--sodium)}
+
+/* molecule controls */
+.presets{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.presets button{border:1px solid var(--rule);background:var(--ink);border-radius:9px;padding:7px 9px;text-align:left;cursor:pointer;line-height:1.2}
+.presets button b{display:block;font:600 14px var(--font-mono)}
+.presets button span{font-size:12px;color:var(--dim)}
+.presets button:hover{border-color:#3a4a70}
+.palette{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.palette button{border:1px solid var(--rule);background:var(--ink);border-radius:9px;padding:7px 4px 6px;cursor:pointer;display:grid;justify-items:center;gap:3px}
+.palette button:hover{border-color:#3a4a70}
+.palette .ball{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:800 12px var(--font-display);color:#0a0f1d;box-shadow:inset -4px -5px 8px rgba(0,0,0,.35)}
+.palette small{font-size:10.5px;color:var(--dim);line-height:1.1;text-align:center}
+.msg{font-size:13px;line-height:1.45;padding:9px 11px;border-radius:8px;background:var(--ink);border:1px solid var(--rule);color:var(--text)}
+.msg.bad{border-color:rgba(255,138,107,.55)}
+
+/* ---------- stage overlays ---------- */
+.labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
+.lbl{position:absolute;left:0;top:0;will-change:transform}
+.lbl .pin{position:absolute;left:-3.5px;top:-3.5px;width:7px;height:7px;border-radius:50%;background:var(--c,var(--text));box-shadow:0 0 0 2px rgba(10,15,29,.8)}
+.lbl .lead{position:absolute;left:0;top:0;width:24px;height:1px;background:var(--c,var(--text));transform-origin:0 0;transform:rotate(-42deg);opacity:.85}
+.lbl .txt{position:absolute;left:17px;top:-38px;white-space:nowrap;font:700 12px/1.25 var(--font-body);padding:4px 8px;border-radius:7px;background:rgba(10,15,29,.84);border:1px solid var(--c,var(--rule));color:var(--text)}
+.lbl .txt em{font-style:normal;font:500 11px var(--font-mono);color:var(--dim);margin-left:5px}
+.lbl.flip .lead{transform:rotate(-138deg)}
+.lbl.flip .txt{left:auto;right:17px}
+.lbl.sym .pin,.lbl.sym .lead{display:none}
+.lbl.sym .txt{left:0;top:0;transform:translate(-50%,-50%);font:800 13px/1 var(--font-display);padding:3px 6px;background:rgba(10,15,29,.66);border-color:transparent}
+.lbl.sym.sel .txt{border-color:var(--sodium)}
+
+.tile{position:absolute;left:16px;top:16px;z-index:3;width:132px;padding:10px 12px 11px;border-radius:12px;background:rgba(16,24,43,.78);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1.5px solid var(--cat,#6fb2ff);cursor:pointer;text-align:left;display:grid;gap:1px}
+.tile:hover{background:rgba(24,34,59,.86)}
+.tile .z{font:600 13px var(--font-mono);color:var(--dim);display:flex;justify-content:space-between}
+.tile .s{font:800 64px/0.95 var(--font-display);letter-spacing:-0.03em;margin-top:2px}
+.tile .s sup{font:700 18px var(--font-mono);vertical-align:top;margin-left:2px;color:var(--sodium);letter-spacing:0}
+.tile .nm{font-weight:700;font-size:15px;line-height:1.2}
+.tile .iso{font:500 12px var(--font-mono);color:var(--dim)}
+.legend{position:absolute;left:16px;bottom:14px;z-index:3;display:flex;flex-wrap:wrap;gap:6px 14px;max-width:calc(100% - 32px);font-size:12.5px;color:var(--dim);pointer-events:none}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.hint{position:absolute;right:16px;top:16px;z-index:3;font-size:12px;color:var(--dim);background:rgba(10,15,29,.6);padding:5px 9px;border-radius:7px;pointer-events:none;text-align:right}
+.tip{position:absolute;z-index:4;pointer-events:none;background:rgba(10,15,29,.92);border:1px solid var(--rule);padding:5px 9px;border-radius:7px;font-size:13px;font-weight:700;white-space:nowrap;transform:translate(14px,14px)}
+.tip small{display:block;font-weight:400;color:var(--dim);font-size:12px}
+.scale-note{position:absolute;left:50%;top:16px;transform:translateX(-50%);z-index:3;max-width:min(460px,calc(100% - 330px));background:rgba(16,24,43,.9);border:1px solid var(--sodium);border-radius:10px;padding:9px 13px;font-size:13px;line-height:1.45}
+.nogl{position:absolute;inset:0;display:grid;place-items:center;z-index:5;padding:24px;text-align:center;color:var(--dim)}
+.nogl div{max-width:380px}
+.nogl b{display:block;color:var(--text);font:700 18px var(--font-display);margin-bottom:6px}
+
+.tour{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:6;width:min(560px,calc(100% - 32px));background:rgba(16,24,43,.96);border:1px solid var(--sodium);border-radius:14px;padding:14px 16px 12px;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+.tour .step{font:600 12px var(--font-mono);color:var(--sodium)}
+.tour h3{font-size:20px;font-weight:760;margin:2px 0 4px;letter-spacing:-0.01em}
+.tour p{margin:0 0 10px;font-size:14.5px;line-height:1.5}
+.tour .nav{display:flex;gap:8px;align-items:center}
+.tour .nav .grow{flex:1}
+.tour .x{position:absolute;right:8px;top:6px;border:0;background:none;color:var(--dim);font-size:22px;cursor:pointer;line-height:1;padding:4px 8px;border-radius:6px}
+.dots{display:flex;gap:4px}
+.dots i{width:6px;height:6px;border-radius:50%;background:var(--rule)}
+.dots i.on{background:var(--sodium)}
+
+/* ---------- notes ---------- */
+.notes .block{gap:8px}
+.card-head{display:flex;align-items:flex-start;gap:12px}
+.card-head .big{font:800 44px/1 var(--font-display);letter-spacing:-0.03em;min-width:64px;padding:6px 8px;border-radius:10px;text-align:center;border:1.5px solid var(--cat,#6fb2ff);background:var(--ink)}
+.card-head h2{font-size:24px;font-weight:780;letter-spacing:-0.015em;line-height:1.1}
+.card-head .sub{color:var(--dim);font:500 13px var(--font-mono);margin-top:3px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid var(--rule);background:var(--ink);line-height:1.5}
+.chip.cat{border-color:var(--cat);color:var(--cat)}
+.chip.good{border-color:rgba(95,211,154,.6);color:var(--good)}
+.chip.warn{border-color:rgba(255,138,107,.6);color:var(--warn)}
+.chip.amber{border-color:rgba(255,181,71,.6);color:var(--sodium)}
+.lede{margin:0;font-size:14px;line-height:1.55;color:#d3d9e8}
+.callout{background:rgba(255,181,71,.07);border:1px solid rgba(255,181,71,.35);border-radius:10px;padding:10px 12px;font-size:14px;line-height:1.5}
+.callout b.t{display:block;font:700 12px var(--font-mono);color:var(--sodium);margin-bottom:2px;letter-spacing:.02em}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.stat{background:var(--ink);border:1px solid var(--rule);border-radius:9px;padding:7px 9px}
+.stat .k{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
+.stat .v{font:600 20px var(--font-mono);font-variant-numeric:tabular-nums;line-height:1.25}
+dl.facts{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0;font-size:13.5px}
+dl.facts dt{color:var(--dim)}
+dl.facts dd{margin:0;font-family:var(--font-mono);font-size:13px;font-variant-numeric:tabular-nums}
+dl.facts dd.plain{font-family:var(--font-body);font-size:13.5px}
+.shellbar{display:flex;gap:4px;flex-wrap:wrap}
+.shellbar span{font:600 13px var(--font-mono);padding:3px 8px;border-radius:7px;background:var(--ink);border:1px solid var(--rule)}
+.shellbar span.outer{border-color:var(--sodium);color:var(--sodium)}
+.shellbar span small{color:var(--dim);font-weight:500;margin-right:4px}
+.part{display:grid;gap:6px}
+.part h3{font-size:18px;font-weight:740;display:flex;align-items:center;gap:8px}
+.part p{margin:0;font-size:14px;line-height:1.55}
+.muted{color:var(--dim);font-size:13.5px;margin:0}
+.gloss{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+.gloss li{display:grid;grid-template-columns:14px 1fr;gap:9px;font-size:13.5px;line-height:1.5}
+.gloss li .sw{margin-top:4px}
+.gloss b{color:var(--text)}
+.formula{font:600 34px/1.1 var(--font-mono);letter-spacing:-0.01em}
+.formula-list{display:grid;gap:4px;font:600 18px var(--font-mono)}
+.bondkinds{display:grid;gap:8px}
+.bondkinds div{font-size:13.5px;line-height:1.5;padding-left:12px;border-left:2px solid var(--rule)}
+
+/* ---------- periodic table ---------- */
+.modal{position:fixed;inset:0;z-index:50;background:rgba(4,7,14,.72);display:grid;place-items:center;padding:16px}
+.sheet{background:var(--bench);border:1px solid var(--rule);border-radius:16px;width:min(1120px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.sheet-head{display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+.sheet-head h2{font-size:20px;font-weight:760;margin-right:auto}
+.sheet-head input{background:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:7px 11px;width:230px}
+.sheet-body{overflow:auto;padding:14px 18px 18px}
+.ptable{display:grid;grid-template-columns:repeat(18,minmax(46px,1fr));gap:3px;min-width:860px}
+.ptable .cell{aspect-ratio:1/1.08;border-radius:6px;border:1px solid transparent;background:var(--raise);background:color-mix(in srgb,var(--cat) 16%,var(--ink));border-top:3px solid var(--cat);cursor:pointer;padding:3px 4px;display:flex;flex-direction:column;align-items:flex-start;text-align:left;min-width:0;overflow:hidden}
+.ptable .cell:hover,.ptable .cell:focus-visible{background:color-mix(in srgb,var(--cat) 30%,var(--ink))}
+.ptable .cell .n{font:500 10px var(--font-mono);color:var(--dim)}
+.ptable .cell .s{font:800 18px/1 var(--font-display);margin-top:1px}
+.ptable .cell .nm{font-size:9px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;margin-top:auto}
+.ptable .cell.cur{outline:2px solid var(--sodium);outline-offset:1px}
+.ptable .cell.dim{opacity:.18}
+.ptable .ph{display:grid;place-items:center;font:500 10px var(--font-mono);color:var(--dim);border:1px dashed var(--rule);border-radius:6px;text-align:center}
+.ptable .gap{grid-column:1/-1;height:8px}
+.catlegend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px;font-size:12px;color:var(--dim)}
+.catlegend span{display:inline-flex;align-items:center;gap:6px}
+.catlegend i{width:10px;height:10px;border-radius:3px;background:var(--cat)}
+
+/* ---------- responsive ---------- */
+@media (max-width:1180px){
+  html,body{height:auto}
+  body{overflow:auto}
+  .app{grid-template-columns:280px minmax(0,1fr);grid-template-rows:min(76vh,760px) auto;grid-template-areas:"controls stage" "notes notes"}
+  .notes{border-left:0;border-top:1px solid var(--rule);overflow:visible;display:grid;grid-template-columns:1fr 1fr}
+  .notes > section{display:contents}
+  .notes .block{border-right:1px solid var(--rule)}
+}
+@media (max-width:760px){
+  .top{gap:10px 14px;padding:10px 14px}
+  .brand p{display:none}
+  .app{grid-template-columns:minmax(0,1fr);grid-template-rows:min(64vh,560px) auto auto;grid-template-areas:"stage" "controls" "notes"}
+  .controls{border-right:0;overflow:visible;border-top:1px solid var(--rule)}
+  .notes{grid-template-columns:1fr}
+  .notes .block{border-right:0}
+  .tile{width:108px;padding:8px 10px}
+  .tile .s{font-size:48px}
+  .hint{display:none}
+  .scale-note{max-width:calc(100% - 150px);left:auto;right:12px;transform:none;font-size:12px}
+  .legend{font-size:11.5px;gap:4px 10px}
+}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none;box-shadow:0 0 0 2px rgba(255,181,71,.6)}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg width="38" height="38" viewBox="0 0 38 38" aria-hidden="true">
+      <ellipse cx="19" cy="19" rx="16" ry="6.2" fill="none" stroke="#7d93d6" stroke-width="1.4" transform="rotate(28 19 19)"/>
+      <ellipse cx="19" cy="19" rx="16" ry="6.2" fill="none" stroke="#ffb547" stroke-width="1.6" transform="rotate(-38 19 19)"/>
+      <circle cx="17.4" cy="18.2" r="3" fill="#ff5a5f"/><circle cx="20.6" cy="18.6" r="3" fill="#aeb9d6"/><circle cx="18.9" cy="21" r="3" fill="#ff5a5f"/>
+      <circle cx="31.6" cy="9.4" r="2" fill="#46c8ff"/>
+    </svg>
+    <div><h1>Atom Explorer</h1><p>Take apart the thing everything is made of</p></div>
+  </div>
+  <nav class="modes" role="tablist" aria-label="What to explore">
+    <button role="tab" id="tab-atom" aria-selected="true" aria-controls="atomControls">One atom</button>
+    <button role="tab" id="tab-mol" aria-selected="false" aria-controls="molControls">Build molecules</button>
+  </nav>
+  <button class="btn accent" id="tourBtn">Take the guided tour</button>
+</header>
+
+<main class="app">
+  <aside class="panel controls" aria-label="Controls">
+    <!-- ATOM CONTROLS -->
+    <div id="atomControls" role="tabpanel" aria-labelledby="tab-atom">
+      <section class="block">
+        <h2>Element</h2>
+        <button class="el-pick" id="elPick" aria-haspopup="dialog">
+          <span class="sym" id="pickSym">C</span>
+          <span><b id="pickName">Carbon</b><small>Open the periodic table</small></span>
+        </button>
+        <div class="quick" id="quick" aria-label="Quick picks"></div>
+      </section>
+
+      <section class="block">
+        <h2>Build it yourself</h2>
+        <p class="help">Add or take away particles. Press and hold to go faster.</p>
+        <div class="stepper" id="step-p">
+          <span class="lab"><span class="sw p"></span><span>Protons<small>decide the element</small></span></span>
+          <button data-k="p" data-d="-1" aria-label="Remove a proton">−</button><output id="cnt-p">6</output><button data-k="p" data-d="1" aria-label="Add a proton">+</button>
+        </div>
+        <div class="stepper" id="step-n">
+          <span class="lab"><span class="sw n"></span><span>Neutrons<small>make isotopes</small></span></span>
+          <button data-k="n" data-d="-1" aria-label="Remove a neutron">−</button><output id="cnt-n">6</output><button data-k="n" data-d="1" aria-label="Add a neutron">+</button>
+        </div>
+        <div class="stepper" id="step-e">
+          <span class="lab"><span class="sw e"></span><span>Electrons<small>make ions</small></span></span>
+          <button data-k="e" data-d="-1" aria-label="Remove an electron">−</button><output id="cnt-e">6</output><button data-k="e" data-d="1" aria-label="Add an electron">+</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="neutralBtn">Make it neutral</button>
+          <button class="btn" id="commonBtn">Most common isotope</button>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>Electron model</h2>
+        <div class="seg" role="radiogroup" aria-label="Electron model">
+          <button role="radio" aria-checked="true" data-model="bohr">Shells<small>Bohr model</small></button>
+          <button role="radio" aria-checked="false" data-model="cloud">Clouds<small>Quantum model</small></button>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>Layers</h2>
+        <div class="chks">
+          <label class="chk"><input type="checkbox" id="L-protons" checked><span class="sw p"></span>Protons</label>
+          <label class="chk"><input type="checkbox" id="L-neutrons" checked><span class="sw n"></span>Neutrons</label>
+          <label class="chk"><input type="checkbox" id="L-quarks"><span class="sw u"></span>Quarks and gluons<small>inside the nucleus</small></label>
+          <label class="chk"><input type="checkbox" id="L-rings" checked><span class="sw ring"></span>Shell rings</label>
+          <label class="chk"><input type="checkbox" id="L-electrons" checked><span class="sw e"></span>Electrons</label>
+          <label class="chk"><input type="checkbox" id="L-cloud"><span class="sw cloud"></span>Electron cloud<small>orbitals</small></label>
+          <label class="chk"><input type="checkbox" id="L-labels" checked><span class="sw lbl"></span>Labels</label>
+        </div>
+        <div class="sublabel">Show or hide each shell</div>
+        <div class="shells" id="shellChips"></div>
+        <div class="chks">
+          <label class="chk"><input type="checkbox" id="O-flat">Flat textbook view</label>
+          <label class="chk"><input type="checkbox" id="O-scale">Real size of the nucleus</label>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>Motion</h2>
+        <label for="speed" class="sublabel" style="margin:0">Electron speed</label>
+        <input type="range" id="speed" min="0" max="3" step="0.05" value="1">
+        <label class="chk"><input type="checkbox" id="O-rotate" checked>Slowly turn the camera</label>
+        <button class="btn" id="resetView">Reset view</button>
+      </section>
+    </div>
+
+    <!-- MOLECULE CONTROLS -->
+    <div id="molControls" role="tabpanel" aria-labelledby="tab-mol" hidden>
+      <section class="block">
+        <h2>Start from a famous molecule</h2>
+        <div class="presets" id="presets"></div>
+      </section>
+      <section class="block">
+        <h2>Add atoms</h2>
+        <p class="help">Click an atom in the 3D view to choose where the next one bonds. With nothing picked, the new atom bonds wherever there is room.</p>
+        <div class="palette" id="palette"></div>
+        <div class="msg" id="molMsg">Pick a molecule above, or add atoms one at a time.</div>
+      </section>
+      <section class="block">
+        <h2>Edit</h2>
+        <div class="row">
+          <button class="btn" id="removeSel" disabled>Remove picked atom</button>
+          <button class="btn" id="clearMol">Clear all</button>
+        </div>
+      </section>
+      <section class="block">
+        <h2>Show</h2>
+        <div class="seg" role="radiogroup" aria-label="Molecule style">
+          <button role="radio" aria-checked="true" data-style="ball">Ball and stick<small>see the bonds</small></button>
+          <button role="radio" aria-checked="false" data-style="fill">Space-filling<small>real shape</small></button>
+        </div>
+        <div class="chks">
+          <label class="chk"><input type="checkbox" id="M-labels" checked><span class="sw lbl"></span>Symbols and labels</label>
+          <label class="chk"><input type="checkbox" id="M-electrons" checked><span class="sw e"></span>Shared electrons and lone pairs</label>
+          <label class="chk"><input type="checkbox" id="M-open" checked><span class="sw v"></span>Glow where an atom has room</label>
+          <label class="chk"><input type="checkbox" id="M-rotate" checked>Slowly turn the camera</label>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <div class="stage" id="stage">
+    <canvas id="gl" aria-label="3D view. Drag to rotate, scroll or pinch to zoom, click a part to learn about it." tabindex="0"></canvas>
+    <div class="labels" id="labels" aria-hidden="true"></div>
+    <button class="tile" id="tile" aria-label="Change element">
+      <span class="z"><span id="tileZ">6</span><span id="tileA">12</span></span>
+      <span class="s" id="tileS">C</span>
+      <span class="nm" id="tileName">Carbon</span>
+      <span class="iso" id="tileIso">Carbon-12</span>
+    </button>
+    <div class="hint" id="hint">Drag to spin · Scroll or pinch to zoom<br>Click any part to learn about it</div>
+    <div class="scale-note" id="scaleNote" hidden></div>
+    <div class="legend" id="legend"></div>
+    <div class="tip" id="tip" hidden></div>
+    <div class="tour" id="tour" hidden role="dialog" aria-labelledby="tourTitle">
+      <button class="x" id="tourClose" aria-label="Close tour">×</button>
+      <div class="step" id="tourStep">Step 1 of 12</div>
+      <h3 id="tourTitle"></h3>
+      <p id="tourText"></p>
+      <div class="nav">
+        <div class="dots grow" id="tourDots"></div>
+        <button class="btn" id="tourBack">Back</button>
+        <button class="btn accent" id="tourNext">Next</button>
+      </div>
+    </div>
+    <div class="nogl" id="nogl" hidden><div><b>The 3D view couldn't start</b><p></p></div></div>
+  </div>
+
+  <aside class="panel notes" id="notes" aria-label="Explanations" aria-live="polite">
+    <section id="notesAtom"></section>
+    <section id="notesMol" hidden></section>
+  </aside>
+</main>
+
+<div class="modal" id="ptable" hidden role="dialog" aria-modal="true" aria-labelledby="ptTitle">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="ptTitle">Pick an element</h2>
+      <input type="search" id="ptSearch" placeholder="Search: gold, Fe, 92…" aria-label="Search elements">
+      <button class="btn" id="ptClose">Close</button>
+    </div>
+    <div class="sheet-body">
+      <div class="ptable" id="ptGrid"></div>
+      <div class="catlegend" id="ptLegend"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* ============================================================
+   CHEMISTRY DATA + LOGIC (no graphics in here)
+   ============================================================ */
+
+// symbol, name, standard atomic weight, mass number of the most common (or most stable) isotope
+const ELEMENT_TABLE = `H,Hydrogen,1.008,1
+He,Helium,4.0026,4
+Li,Lithium,6.94,7
+Be,Beryllium,9.0122,9
+B,Boron,10.81,11
+C,Carbon,12.011,12
+N,Nitrogen,14.007,14
+O,Oxygen,15.999,16
+F,Fluorine,18.998,19
+Ne,Neon,20.180,20
+Na,Sodium,22.990,23
+Mg,Magnesium,24.305,24
+Al,Aluminum,26.982,27
+Si,Silicon,28.085,28
+P,Phosphorus,30.974,31
+S,Sulfur,32.06,32
+Cl,Chlorine,35.45,35
+Ar,Argon,39.948,40
+K,Potassium,39.098,39
+Ca,Calcium,40.078,40
+Sc,Scandium,44.956,45
+Ti,Titanium,47.867,48
+V,Vanadium,50.942,51
+Cr,Chromium,51.996,52
+Mn,Manganese,54.938,55
+Fe,Iron,55.845,56
+Co,Cobalt,58.933,59
+Ni,Nickel,58.693,58
+Cu,Copper,63.546,63
+Zn,Zinc,65.38,64
+Ga,Gallium,69.723,69
+Ge,Germanium,72.630,74
+As,Arsenic,74.922,75
+Se,Selenium,78.971,80
+Br,Bromine,79.904,79
+Kr,Krypton,83.798,84
+Rb,Rubidium,85.468,85
+Sr,Strontium,87.62,88
+Y,Yttrium,88.906,89
+Zr,Zirconium,91.224,90
+Nb,Niobium,92.906,93
+Mo,Molybdenum,95.95,98
+Tc,Technetium,98,98
+Ru,Ruthenium,101.07,102
+Rh,Rhodium,102.91,103
+Pd,Palladium,106.42,106
+Ag,Silver,107.87,107
+Cd,Cadmium,112.41,114
+In,Indium,114.82,115
+Sn,Tin,118.71,120
+Sb,Antimony,121.76,121
+Te,Tellurium,127.60,130
+I,Iodine,126.90,127
+Xe,Xenon,131.29,132
+Cs,Cesium,132.91,133
+Ba,Barium,137.33,138
+La,Lanthanum,138.91,139
+Ce,Cerium,140.12,140
+Pr,Praseodymium,140.91,141
+Nd,Neodymium,144.24,142
+Pm,Promethium,145,145
+Sm,Samarium,150.36,152
+Eu,Europium,151.96,153
+Gd,Gadolinium,157.25,158
+Tb,Terbium,158.93,159
+Dy,Dysprosium,162.50,164
+Ho,Holmium,164.93,165
+Er,Erbium,167.26,166
+Tm,Thulium,168.93,169
+Yb,Ytterbium,173.05,174
+Lu,Lutetium,174.97,175
+Hf,Hafnium,178.49,180
+Ta,Tantalum,180.95,181
+W,Tungsten,183.84,184
+Re,Rhenium,186.21,187
+Os,Osmium,190.23,192
+Ir,Iridium,192.22,193
+Pt,Platinum,195.08,195
+Au,Gold,196.97,197
+Hg,Mercury,200.59,202
+Tl,Thallium,204.38,205
+Pb,Lead,207.2,208
+Bi,Bismuth,208.98,209
+Po,Polonium,209,209
+At,Astatine,210,210
+Rn,Radon,222,222
+Fr,Francium,223,223
+Ra,Radium,226,226
+Ac,Actinium,227,227
+Th,Thorium,232.04,232
+Pa,Protactinium,231.04,231
+U,Uranium,238.03,238
+Np,Neptunium,237,237
+Pu,Plutonium,244,244
+Am,Americium,243,243
+Cm,Curium,247,247
+Bk,Berkelium,247,247
+Cf,Californium,251,251
+Es,Einsteinium,252,252
+Fm,Fermium,257,257
+Md,Mendelevium,258,258
+No,Nobelium,259,259
+Lr,Lawrencium,266,266
+Rf,Rutherfordium,267,267
+Db,Dubnium,268,268
+Sg,Seaborgium,269,269
+Bh,Bohrium,270,270
+Hs,Hassium,269,269
+Mt,Meitnerium,278,278
+Ds,Darmstadtium,281,281
+Rg,Roentgenium,282,282
+Cn,Copernicium,285,285
+Nh,Nihonium,286,286
+Fl,Flerovium,289,289
+Mc,Moscovium,290,290
+Lv,Livermorium,293,293
+Ts,Tennessine,294,294
+Og,Oganesson,294,294`;
+
+const EL = ELEMENT_TABLE.trim().split('\n').map((line, i) => {
+  const [sym, name, w, A] = line.split(',');
+  return { Z: i + 1, sym, name, weight: parseFloat(w), A: parseInt(A, 10) };
+});
+const BY_SYM = Object.fromEntries(EL.map(e => [e.sym, e]));
+
+/* ---------- categories ---------- */
+const CATS = {
+  alkali:     { name: 'Alkali metal', color: '#ff7f73', blurb: 'Soft, shiny metals with just 1 electron in their outer shell. They give that electron away so easily that they react violently with water, which is why they are stored in oil.' },
+  alkaline:   { name: 'Alkaline earth metal', color: '#ffb36e', blurb: 'Metals with 2 outer electrons. Reactive, but calmer than the alkali metals. The calcium in your bones is one of them.' },
+  transition: { name: 'Transition metal', color: '#e6cf73', blurb: 'The classic metals: hard, shiny and great at carrying electricity and heat. Their electrons fill an inner "d" subshell, which is why many of their compounds are brightly colored.' },
+  post:       { name: 'Post-transition metal', color: '#9fd68a', blurb: 'Softer metals that sit between the transition metals and the metalloids. Many of them melt at fairly low temperatures.' },
+  metalloid:  { name: 'Metalloid', color: '#5fd0b8', blurb: 'Part metal, part nonmetal. Some, like silicon, are semiconductors, which makes them perfect for computer chips.' },
+  nonmetal:   { name: 'Reactive nonmetal', color: '#6fb2ff', blurb: 'The building blocks of life: carbon, hydrogen, oxygen, nitrogen and friends. They like to share electrons with each other to make molecules.' },
+  halogen:    { name: 'Halogen', color: '#8f98ff', blurb: 'With 7 outer electrons, halogens are just one short of a full shell, so they grab electrons from other atoms. "Halogen" means "salt-maker" in Greek.' },
+  noble:      { name: 'Noble gas', color: '#c696ff', blurb: 'Their outer shell is already full, so they almost never react with anything. They are the loners of the periodic table.' },
+  lanthanide: { name: 'Lanthanide (rare earth)', color: '#f39ad8', blurb: 'Metals whose electrons fill the deep "f" subshell. They are used in super-strong magnets, phone screens and lasers.' },
+  actinide:   { name: 'Actinide', color: '#ff9aa9', blurb: 'Heavy, radioactive metals that also fill an "f" subshell. Uranium and plutonium are the famous ones. Almost all of the ones after uranium are made in labs.' }
+};
+
+function category(Z) {
+  if ([3, 11, 19, 37, 55, 87].includes(Z)) return 'alkali';
+  if ([4, 12, 20, 38, 56, 88].includes(Z)) return 'alkaline';
+  if (Z >= 57 && Z <= 71) return 'lanthanide';
+  if (Z >= 89 && Z <= 103) return 'actinide';
+  if ([2, 10, 18, 36, 54, 86, 118].includes(Z)) return 'noble';
+  if ([9, 17, 35, 53, 85, 117].includes(Z)) return 'halogen';
+  if ([1, 6, 7, 8, 15, 16, 34].includes(Z)) return 'nonmetal';
+  if ([5, 14, 32, 33, 51, 52].includes(Z)) return 'metalloid';
+  if ([13, 31, 49, 50, 81, 82, 83, 84, 113, 114, 115, 116].includes(Z)) return 'post';
+  return 'transition';
+}
+
+function stateAtRoomTemp(Z) {
+  if ([1, 2, 7, 8, 9, 10, 17, 18, 36, 54, 86].includes(Z)) return 'Gas';
+  if ([35, 80].includes(Z)) return 'Liquid';
+  if (Z >= 104) return 'Unknown (too short-lived)';
+  return 'Solid';
+}
+
+/* where an element sits on the periodic table */
+function tablePosition(Z) {
+  const ends = [2, 10, 18, 36, 54, 86, 118];
+  const period = ends.findIndex(e => Z <= e) + 1;
+  const start = period === 1 ? 1 : ends[period - 2] + 1;
+  const idx = Z - start;
+  let group = null, fblock = false, fcol = 0;
+  if (period === 1) group = Z === 1 ? 1 : 18;
+  else if (period <= 3) group = idx < 2 ? idx + 1 : idx + 11;
+  else if (period <= 5) group = idx + 1;
+  else {
+    if (idx < 2) group = idx + 1;
+    else if (idx < 17) { fblock = true; fcol = idx - 2; }
+    else group = idx - 13;
+  }
+  return { period, group, fblock, fcol };
+}
+
+/* ---------- electron configuration ---------- */
+const SUBSHELL_LETTERS = 'spdf';
+const SHELL_LETTERS = 'KLMNOPQR';
+const ORDER = (() => {
+  const list = [];
+  for (let n = 1; n <= 8; n++) for (let l = 0; l <= Math.min(n - 1, 3); l++) list.push({ n, l, cap: 2 * (2 * l + 1), key: n + SUBSHELL_LETTERS[l] });
+  list.sort((a, b) => (a.n + a.l) - (b.n + b.l) || a.n - b.n);
+  return list;
+})();
+const ORDER_BY_KEY = Object.fromEntries(ORDER.map(o => [o.key, o]));
+
+// real atoms that break the simple filling rule: [from, to, count]
+const CONFIG_EXCEPTIONS = {
+  24: ['4s', '3d', 1], 29: ['4s', '3d', 1], 41: ['5s', '4d', 1], 42: ['5s', '4d', 1], 44: ['5s', '4d', 1],
+  45: ['5s', '4d', 1], 46: ['5s', '4d', 2], 47: ['5s', '4d', 1], 57: ['4f', '5d', 1], 58: ['4f', '5d', 1],
+  64: ['4f', '5d', 1], 78: ['6s', '5d', 1], 79: ['6s', '5d', 1], 89: ['5f', '6d', 1], 90: ['5f', '6d', 2],
+  91: ['5f', '6d', 1], 92: ['5f', '6d', 1], 93: ['5f', '6d', 1], 96: ['5f', '6d', 1], 103: ['6d', '7p', 1]
+};
+
+function fill(count) {
+  const occ = {};
+  let left = count;
+  for (const o of ORDER) {
+    if (left <= 0) break;
+    const k = Math.min(o.cap, left);
+    occ[o.key] = k; left -= k;
+  }
+  return occ;
+}
+
+function electronConfig(Z, E) {
+  const occ = fill(Z);
+  const ex = CONFIG_EXCEPTIONS[Z];
+  if (ex) {
+    const [from, to, c] = ex;
+    occ[from] = (occ[from] || 0) - c;
+    occ[to] = (occ[to] || 0) + c;
+    if (occ[from] <= 0) delete occ[from];
+  }
+  if (E < Z) {
+    for (let i = 0; i < Z - E; i++) {
+      // electrons leave from the outermost shell first (highest n, then highest l)
+      const keys = Object.keys(occ).filter(k => occ[k] > 0);
+      keys.sort((a, b) => ORDER_BY_KEY[b].n - ORDER_BY_KEY[a].n || ORDER_BY_KEY[b].l - ORDER_BY_KEY[a].l);
+      const k = keys[0];
+      occ[k]--; if (occ[k] === 0) delete occ[k];
+    }
+  } else if (E > Z) {
+    let extra = E - Z;
+    for (const o of ORDER) {
+      if (extra <= 0) break;
+      const have = occ[o.key] || 0;
+      const add = Math.min(o.cap - have, extra);
+      if (add > 0) { occ[o.key] = have + add; extra -= add; }
+    }
+  }
+  const subshells = Object.keys(occ).map(k => ({ ...ORDER_BY_KEY[k], e: occ[k] }))
+    .sort((a, b) => (a.n + a.l) - (b.n + b.l) || a.n - b.n);
+  const maxN = subshells.reduce((m, s) => Math.max(m, s.n), 0);
+  const shells = [];
+  for (let n = 1; n <= maxN; n++) shells.push(subshells.filter(s => s.n === n).reduce((t, s) => t + s.e, 0));
+  return { occ, subshells, shells, valence: shells.length ? shells[shells.length - 1] : 0 };
+}
+
+const SUPS = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '+': '⁺', '-': '⁻' };
+const SUBS = { '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉' };
+const sup = s => String(s).split('').map(c => SUPS[c] || c).join('');
+const sub = s => String(s).split('').map(c => SUBS[c] || c).join('');
+
+function chargeText(q) {
+  if (q === 0) return '';
+  const mag = Math.abs(q);
+  return sup((mag > 1 ? mag : '') + (q > 0 ? '+' : '-'));
+}
+
+const NOBLE = [2, 10, 18, 36, 54, 86];
+function configString(Z, E) {
+  const cfg = electronConfig(Z, E);
+  if (E === 0) return 'no electrons';
+  let core = null;
+  if (E > 18) {
+    for (let i = NOBLE.length - 1; i >= 0; i--) {
+      const ng = NOBLE[i];
+      if (ng >= E) continue;
+      const ngOcc = fill(ng);
+      if (Object.keys(ngOcc).every(k => (cfg.occ[k] || 0) >= ngOcc[k])) { core = { ng, occ: ngOcc }; break; }
+    }
+  }
+  const parts = [];
+  if (core) parts.push('[' + EL[core.ng - 1].sym + ']');
+  const ordered = [...cfg.subshells].sort((a, b) => a.n - b.n || a.l - b.l);
+  for (const s of ordered) {
+    const rest = s.e - (core ? (core.occ[s.key] || 0) : 0);
+    if (rest > 0) parts.push(s.key + sup(rest));
+  }
+  return parts.join(' ');
+}
+
+/* ---------- isotopes ---------- */
+const STABLE_N = {
+  1: [0, 1], 2: [1, 2], 3: [3, 4], 4: [5], 5: [5, 6], 6: [6, 7], 7: [7, 8], 8: [8, 9, 10], 9: [10], 10: [10, 11, 12],
+  11: [12], 12: [12, 13, 14], 13: [14], 14: [14, 15, 16], 15: [16], 16: [16, 17, 18, 20], 17: [18, 20], 18: [18, 20, 22],
+  19: [20, 22], 20: [20, 22, 23, 24, 26, 28]
+};
+
+const ISOTOPE_NOTES = {
+  '1-0': 'Protium, ordinary hydrogen. It is the only atom with no neutrons at all: its nucleus is a single proton.',
+  '1-1': 'Deuterium, or "heavy hydrogen". About 1 in every 6,400 hydrogen atoms is this one. Water made with it is called heavy water.',
+  '1-2': 'Tritium. It is radioactive, with a half-life of about 12 years, and it is used in glowing exit signs and watch dials.',
+  '2-1': 'Helium-3. Rare but stable. Scientists dream of using it as fuel for fusion reactors.',
+  '6-6': 'Carbon-12. About 99% of all carbon. Scientists defined the atomic mass unit using it: one carbon-12 atom weighs exactly 12 u.',
+  '6-7': 'Carbon-13. Stable, and makes up about 1% of carbon.',
+  '6-8': 'Carbon-14. It is radioactive, with a half-life of 5,730 years. Living things stop taking it in when they die, so scientists measure how much is left to date old bones and wood (carbon dating).',
+  '8-10': 'Oxygen-18. Scientists measure it in ancient ice to learn what Earth\'s climate was like long ago.',
+  '19-21': 'Potassium-40. Naturally radioactive. Every banana you eat contains a tiny amount!',
+  '26-30': 'Iron-56. One of the most tightly bound nuclei in nature. Stars can fuse elements up to about iron to make energy, but no further.',
+  '27-33': 'Cobalt-60. Radioactive, used in hospitals to treat cancer and to sterilize medical equipment.',
+  '38-52': 'Strontium-90. A dangerous radioactive leftover from nuclear accidents and bomb tests.',
+  '43-55': 'Technetium-98. Technetium was the first element made artificially, in 1937. It has no stable isotopes at all.',
+  '53-78': 'Iodine-131. Radioactive. Doctors use it to treat thyroid problems.',
+  '55-78': 'Cesium-133. Atomic clocks count exactly 9,192,631,770 of its "ticks" to measure one second.',
+  '82-126': 'Lead-208. The heaviest stable nucleus known. Its 82 protons and 126 neutrons are both "magic numbers" that make extra-stable nuclei.',
+  '83-126': 'Bismuth-209. Technically radioactive, but its half-life is about a billion times longer than the age of the universe.',
+  '86-136': 'Radon-222. A radioactive gas that seeps out of the ground. Many homes test for it.',
+  '92-143': 'Uranium-235. Its nucleus can split in two (fission) and release huge amounts of energy. It fuels nuclear power plants.',
+  '92-146': 'Uranium-238. The most common uranium. Its half-life is 4.5 billion years, about the age of Earth.',
+  '94-144': 'Plutonium-238. Its steady heat is turned into electricity to power spacecraft like Voyager and the Curiosity rover on Mars.',
+  '94-145': 'Plutonium-239. Made inside nuclear reactors from uranium-238.'
+};
+
+function optimalN(Z) {
+  let best = Z, bd = 1e9;
+  for (let n = Math.max(0, Z - 2); n <= Z * 1.7 + 12; n++) {
+    const A = Z + n;
+    const zopt = A / (1.98 + 0.0155 * Math.pow(A, 2 / 3));
+    const d = Math.abs(zopt - Z);
+    if (d < bd) { bd = d; best = n; }
+  }
+  return best;
+}
+
+// returns {stable, sure, reason}
+function stability(Z, N) {
+  if (Z === 1 && N === 0) return { stable: true, sure: true };
+  if (N === 0) return { stable: false, sure: true, reason: 'noNeutrons' };
+  if (STABLE_N[Z]) return { stable: STABLE_N[Z].includes(N), sure: true };
+  if (Z === 43 || Z === 61) return { stable: false, sure: true, reason: 'noStable' };
+  if (Z >= 83) return { stable: false, sure: true, reason: 'heavy' };
+  const main = EL[Z - 1].A - Z;
+  if (N === main) return { stable: true, sure: true };
+  const best = optimalN(Z);
+  const tol = 2 + Math.floor(Z / 20);
+  const near = Math.abs(N - best) <= tol || Math.abs(N - main) <= 1;
+  return { stable: near, sure: false };
+}
+
+/* estimated mass of the atom using the semi-empirical mass formula */
+const M_P = 1.007276, M_N = 1.008665, M_E = 0.000549, MEV_PER_U = 931.494;
+function bindingEnergyMeV(Z, N) {
+  const A = Z + N;
+  if (A < 2) return 0;
+  const aV = 15.75, aS = 17.8, aC = 0.711, aA = 23.7;
+  let B = aV * A - aS * Math.pow(A, 2 / 3) - aC * Z * (Z - 1) / Math.cbrt(A) - aA * (N - Z) * (N - Z) / A;
+  const d = 11.18 / Math.sqrt(A);
+  if (Z % 2 === 0 && N % 2 === 0) B += d; else if (Z % 2 === 1 && N % 2 === 1) B -= d;
+  return Math.max(0, B);
+}
+
+/* ---------- fun facts ---------- */
+const FACTS = {
+  H: 'Hydrogen is the most common element in the universe: about 3 out of every 4 grams of normal matter. The Sun shines by squeezing hydrogen nuclei together into helium.',
+  He: 'Helium was discovered in the Sun\'s light in 1868, decades before anyone found it on Earth. Its name comes from "helios", Greek for Sun.',
+  Li: 'Lithium is the lightest metal. It is so soft you can cut it with a butter knife, and it powers the battery in your phone.',
+  Be: 'The mirrors of the James Webb Space Telescope are made of beryllium, coated with a thin layer of gold.',
+  B: 'Boron is in the heat-proof glass used for lab beakers and baking dishes. Plants need a little of it to grow.',
+  C: 'Diamonds and pencil "lead" (graphite) are both pure carbon. The only difference is how the atoms are linked together. Every living thing on Earth is built around carbon.',
+  N: 'About 78% of the air you breathe is nitrogen. Liquid nitrogen is so cold (-196 °C) that it can freeze a flower solid in seconds.',
+  O: 'Oxygen is the most common element in Earth\'s crust and makes up about 65% of your body\'s mass (mostly in water).',
+  F: 'Fluorine is the most reactive element of all. It even reacts with glass. In a safer form, fluoride, it protects your teeth.',
+  Ne: 'Neon glows bright red-orange when electricity flows through it. "Neon" signs in other colors usually use different gases.',
+  Na: 'Sodium is a soft metal that explodes in water. Joined with chlorine, a poisonous gas, it makes table salt.',
+  Mg: 'Magnesium burns with a blinding white light, so it is used in fireworks and flares. There is a magnesium atom at the center of every chlorophyll molecule in plants.',
+  Al: 'Aluminum is the most common metal in Earth\'s crust, but it is hard to separate from rock. In the 1800s it was worth more than gold, so the Washington Monument was topped with it.',
+  Si: 'Silicon is the second most common element in Earth\'s crust. Sand is mostly silicon and oxygen, and every computer chip is built on a slice of pure silicon.',
+  P: 'Phosphorus holds your DNA together and helps build your bones. One form of it glows in the dark.',
+  S: 'Sulfur is found around volcanoes. Pure sulfur barely smells, but many of its compounds stink, like the rotten-egg smell of hydrogen sulfide.',
+  Cl: 'Chlorine is a toxic yellow-green gas, yet it makes up half of the table salt you eat. It also keeps swimming pools clean.',
+  Ar: 'Argon makes up almost 1% of the air. Because it does not react, it is used to protect metals during welding.',
+  K: 'Your nerves send signals by moving potassium and sodium ions in and out of cells. Bananas and potatoes are full of potassium.',
+  Ca: 'Calcium makes your bones and teeth hard. Chalk, marble and seashells are all made of calcium carbonate.',
+  Ti: 'Titanium is about as strong as steel but almost half the weight. It is used in airplanes, bike frames and artificial hip joints.',
+  Cr: 'Chromium makes stainless steel shiny and rust-proof. A trace of it is also what makes rubies red.',
+  Fe: 'Earth\'s core is mostly iron. The iron in your blood grabs oxygen in your lungs and carries it around your body.',
+  Co: 'Cobalt gives glass and paint a deep blue color, and it is part of vitamin B12.',
+  Ni: 'A US 5-cent coin is 25% nickel and 75% copper. Many meteorites are made of iron and nickel.',
+  Cu: 'Copper carries electricity so well that most wires are made of it. The Statue of Liberty is copper: it turned green as it reacted with the air.',
+  Zn: 'Zinc coats steel to stop it rusting. Mix it with copper and you get brass, the metal in trumpets.',
+  Ga: 'Gallium melts at 29.8 °C, so a spoon made of it would melt in your hand.',
+  Ge: 'Germanium was predicted by Dmitri Mendeleev before anyone had found it. He left a gap for it in his periodic table.',
+  As: 'Arsenic is famous as a poison, but tiny amounts are used in electronics.',
+  Br: 'Bromine is one of only two elements that are liquid at room temperature. The other is mercury.',
+  Kr: 'Krypton is a real noble gas used in some flash bulbs and lasers. It has nothing to do with Superman.',
+  Sr: 'Strontium makes fireworks glow bright red.',
+  Ag: 'Silver carries electricity better than any other element, even copper. It is also great at killing bacteria.',
+  Sn: 'Tin cans are actually steel with a thin coat of tin to stop rust.',
+  I: 'Your thyroid gland needs iodine, which is why it is added to table salt. Heated iodine turns into a purple vapor.',
+  Xe: 'Some spacecraft are pushed through space by firing out xenon ions from an ion engine.',
+  Cs: 'Cesium atomic clocks are so accurate they would lose less than a second in millions of years. The official second is defined by cesium atoms.',
+  Ba: 'Doctors have patients drink a barium mixture before X-rays because it makes the stomach show up clearly.',
+  Nd: 'Neodymium magnets are the strongest permanent magnets you can buy. They are in headphones, phones and electric car motors.',
+  W: 'Tungsten has the highest melting point of any metal: 3,422 °C. That is why old light bulbs used tungsten filaments.',
+  Os: 'Osmium is the densest naturally occurring element. A football-sized lump would weigh about as much as a person.',
+  Pt: 'Platinum is so unreactive that it is used in car exhaust systems to break down harmful gases without getting used up.',
+  Au: 'Gold never rusts or tarnishes. Its yellow color comes from Einstein\'s relativity: its inner electrons move so fast that they change how gold absorbs light. Much of the gold in the universe was made when neutron stars collided.',
+  Hg: 'Mercury is the only metal that is liquid at room temperature. It used to be used in thermometers.',
+  Pb: 'Lead is the heaviest element with stable isotopes, and it is great at blocking X-rays. The "lead" in pencils is actually carbon.',
+  Bi: 'Bismuth forms beautiful rainbow-colored crystals shaped like little staircases.',
+  Po: 'Polonium was discovered by Marie and Pierre Curie in 1898 and named after Marie\'s home country, Poland.',
+  Rn: 'Radon is a radioactive gas that comes from uranium in rocks and soil.',
+  Fr: 'Francium is so rare and short-lived that there is only about 30 grams of it in the whole Earth\'s crust at any moment.',
+  Ra: 'Radium glows faintly in the dark. Marie Curie discovered it, and her notebooks are still too radioactive to handle without protection.',
+  U: 'Uranium is the heaviest element found in large amounts in nature. One kilogram of uranium-235 can release as much energy as burning about 2,700 tonnes of coal.',
+  Pu: 'Plutonium-238 gives off steady heat that powers spacecraft far from the Sun, like Voyager and the Curiosity rover.',
+  Am: 'Many smoke detectors contain a tiny speck of americium.',
+  Es: 'Einsteinium is named after Albert Einstein. It was first found in the debris of the first hydrogen bomb test in 1952.',
+  Og: 'Oganesson is the heaviest element ever made. Only a handful of atoms have ever existed, and each lasted less than a thousandth of a second.'
+};
+
+/* ---------- molecule builder ---------- */
+// slots = how many bonds it makes (nonmetals) or electrons it gives away (metals)
+const BUILDER = {
+  H:  { slots: 1, ve: 1, metal: false, r: 0.32, color: '#ffffff' },
+  C:  { slots: 4, ve: 4, metal: false, r: 0.52, color: '#909090' },
+  N:  { slots: 3, ve: 5, metal: false, r: 0.50, color: '#3050f8' },
+  O:  { slots: 2, ve: 6, metal: false, r: 0.48, color: '#ff0d0d' },
+  F:  { slots: 1, ve: 7, metal: false, r: 0.45, color: '#90e050' },
+  Cl: { slots: 1, ve: 7, metal: false, r: 0.70, color: '#1ff01f' },
+  Br: { slots: 1, ve: 7, metal: false, r: 0.80, color: '#a62929' },
+  I:  { slots: 1, ve: 7, metal: false, r: 0.92, color: '#940094' },
+  S:  { slots: 2, ve: 6, metal: false, r: 0.70, color: '#ffff30' },
+  P:  { slots: 3, ve: 5, metal: false, r: 0.72, color: '#ff8000' },
+  Si: { slots: 4, ve: 4, metal: false, r: 0.68, color: '#f0c8a0' },
+  Li: { slots: 1, ve: 1, metal: true,  r: 0.62, color: '#cc80ff' },
+  Na: { slots: 1, ve: 1, metal: true,  r: 0.78, color: '#ab5cf2' },
+  K:  { slots: 1, ve: 1, metal: true,  r: 0.95, color: '#8f40d4' },
+  Mg: { slots: 2, ve: 2, metal: true,  r: 0.70, color: '#8aff00' },
+  Ca: { slots: 2, ve: 2, metal: true,  r: 0.85, color: '#3dff00' },
+  Al: { slots: 3, ve: 3, metal: true,  r: 0.62, color: '#bfa6a6' }
+};
+const BUILDER_ORDER = ['H', 'C', 'N', 'O', 'F', 'Cl', 'Br', 'I', 'S', 'P', 'Si', 'Li', 'Na', 'K', 'Mg', 'Ca', 'Al'];
+
+const PRESETS = [
+  { id: 'water', name: 'Water', atoms: ['O', 'H', 'H'], bonds: [[0, 1, 1], [0, 2, 1]] },
+  { id: 'co2', name: 'Carbon dioxide', atoms: ['C', 'O', 'O'], bonds: [[0, 1, 2], [0, 2, 2]] },
+  { id: 'methane', name: 'Methane', atoms: ['C', 'H', 'H', 'H', 'H'], bonds: [[0, 1, 1], [0, 2, 1], [0, 3, 1], [0, 4, 1]] },
+  { id: 'ammonia', name: 'Ammonia', atoms: ['N', 'H', 'H', 'H'], bonds: [[0, 1, 1], [0, 2, 1], [0, 3, 1]] },
+  { id: 'o2', name: 'Oxygen gas', atoms: ['O', 'O'], bonds: [[0, 1, 2]] },
+  { id: 'n2', name: 'Nitrogen gas', atoms: ['N', 'N'], bonds: [[0, 1, 3]] },
+  { id: 'salt', name: 'Table salt', atoms: ['Na', 'Cl'], bonds: [[0, 1, 1]] },
+  { id: 'mgo', name: 'Magnesium oxide', atoms: ['Mg', 'O'], bonds: [[0, 1, 2]] },
+  { id: 'hcl', name: 'Hydrogen chloride', atoms: ['H', 'Cl'], bonds: [[0, 1, 1]] },
+  { id: 'h2o2', name: 'Hydrogen peroxide', atoms: ['O', 'O', 'H', 'H'], bonds: [[0, 1, 1], [0, 2, 1], [1, 3, 1]] },
+  { id: 'ethanol', name: 'Ethanol', atoms: ['C', 'C', 'O', 'H', 'H', 'H', 'H', 'H', 'H'], bonds: [[0, 1, 1], [1, 2, 1], [0, 3, 1], [0, 4, 1], [0, 5, 1], [1, 6, 1], [1, 7, 1], [2, 8, 1]] },
+  { id: 'ethylene', name: 'Ethylene', atoms: ['C', 'C', 'H', 'H', 'H', 'H'], bonds: [[0, 1, 2], [0, 2, 1], [0, 3, 1], [1, 4, 1], [1, 5, 1]] },
+  { id: 'hcn', name: 'Hydrogen cyanide', atoms: ['H', 'C', 'N'], bonds: [[0, 1, 1], [1, 2, 3]] },
+  { id: 'cacl2', name: 'Calcium chloride', atoms: ['Ca', 'Cl', 'Cl'], bonds: [[0, 1, 1], [0, 2, 1]] }
+];
+
+const KNOWN_LIST = [
+  ['H2', 'Hydrogen gas', 'The lightest molecule. Stars are mostly hydrogen, and some rockets burn it as fuel.'],
+  ['O2', 'Oxygen gas', 'The oxygen you breathe. The two atoms share 2 pairs of electrons, which is called a double bond.'],
+  ['N2', 'Nitrogen gas', '78% of the air. Its triple bond is so strong that nitrogen gas barely reacts with anything.'],
+  ['F2', 'Fluorine gas', 'A pale yellow gas, made of the most reactive element there is.'],
+  ['Cl2', 'Chlorine gas', 'A toxic yellow-green gas used to make bleach and to clean pool water.'],
+  ['Br2', 'Bromine', 'A dark red liquid. Bromine is one of only two elements that are liquid at room temperature.'],
+  ['I2', 'Iodine', 'Shiny dark crystals that turn straight into purple vapor when heated.'],
+  ['H2O', 'Water', 'Covers 71% of Earth\'s surface and makes up about 60% of your body. Its bent shape gives it a slightly negative end and a slightly positive end, which is why water dissolves so many things.'],
+  ['H2O2', 'Hydrogen peroxide', 'Used to clean cuts and bleach hair. It slowly breaks down into water and oxygen.'],
+  ['CO2', 'Carbon dioxide', 'You breathe it out and plants take it in to make sugar. It is also the fizz in soda. It is a straight line: O=C=O.'],
+  ['CO', 'Carbon monoxide', 'A poisonous gas with no smell. Real CO has a special triple bond that our simple bonding rules can\'t show, so the builder says carbon still has room.'],
+  ['CH4', 'Methane', 'The main gas in natural gas, and part of cow burps. Its 4 bonds point to the corners of a shape called a tetrahedron.'],
+  ['NH3', 'Ammonia', 'Used to make the fertilizer that helps feed billions of people. Its lone pair pushes the three hydrogens down into a pyramid.'],
+  ['HCl', 'Hydrogen chloride', 'Dissolved in water it becomes hydrochloric acid, the same acid in your stomach.'],
+  ['HF', 'Hydrogen fluoride', 'Dissolved in water it makes an acid strong enough to etch glass.'],
+  ['H2S', 'Hydrogen sulfide', 'The rotten-egg smell. It is shaped like water, with sulfur in place of oxygen.'],
+  ['PH3', 'Phosphine', 'A toxic gas shaped like ammonia.'],
+  ['SiH4', 'Silane', 'Silicon\'s version of methane. It catches fire by itself in air.'],
+  ['NaCl', 'Sodium chloride (table salt)', 'A dangerous metal plus a poisonous gas make something you sprinkle on fries! Real salt is a giant crystal of alternating Na⁺ and Cl⁻ ions. This shows one pair.'],
+  ['KCl', 'Potassium chloride', 'Used as a salt substitute for people who need less sodium.'],
+  ['LiF', 'Lithium fluoride', 'Its crystals let ultraviolet light through, so it is used for special lenses.'],
+  ['NaF', 'Sodium fluoride', 'Added to some toothpaste to protect teeth.'],
+  ['MgO', 'Magnesium oxide', 'The white powder left when magnesium burns. Magnesium hands 2 electrons to oxygen.'],
+  ['MgCl2', 'Magnesium chloride', 'Spread on roads in winter to melt ice.'],
+  ['CaCl2', 'Calcium chloride', 'Also melts ice on roads, and soaks up water to keep things dry.'],
+  ['CaO', 'Calcium oxide (quicklime)', 'Used to make cement.'],
+  ['Al2O3', 'Aluminum oxide', 'Rubies and sapphires are mostly this, with a few other atoms mixed in that give them color.'],
+  ['NaOH', 'Sodium hydroxide (lye)', 'A strong base used to make soap. Na⁺ is held by an ionic bond, while O and H share electrons.'],
+  ['KOH', 'Potassium hydroxide', 'A strong base used inside alkaline batteries.'],
+  ['LiH', 'Lithium hydride', 'An ionic compound where hydrogen takes an electron and becomes H⁻.'],
+  ['NaH', 'Sodium hydride', 'An ionic compound where hydrogen takes an electron and becomes H⁻.'],
+  ['C2H5OH', 'Ethanol', 'The alcohol in drinks and in some car fuel. Rearrange the same atoms and you get dimethyl ether, a totally different chemical. Molecules like that are called isomers.'],
+  ['CH3OH', 'Methanol', 'Wood alcohol. It is a fuel, and it is poisonous to drink.'],
+  ['CH2O', 'Formaldehyde', 'Used to preserve specimens in biology labs.'],
+  ['C2H6', 'Ethane', 'A gas found in natural gas.'],
+  ['C3H8', 'Propane', 'The fuel in barbecue grills.'],
+  ['C4H10', 'Butane', 'The fuel inside lighters.'],
+  ['C2H4', 'Ethylene', 'A gas that makes fruit ripen. Its two carbons share a double bond.'],
+  ['C2H2', 'Acetylene', 'Burns hot enough to cut steel in welding torches. Its two carbons share a triple bond.'],
+  ['HCN', 'Hydrogen cyanide', 'A very poisonous gas. Carbon and nitrogen share a triple bond.'],
+  ['CCl4', 'Carbon tetrachloride', 'Once used in fire extinguishers. It is now banned for most uses because it is toxic.'],
+  ['CHCl3', 'Chloroform', 'Doctors once used it to put patients to sleep for surgery.'],
+  ['CH3Cl', 'Chloromethane', 'A gas made naturally by seaweed, fungi and the ocean.'],
+  ['CH3COOH', 'Acetic acid', 'The acid that gives vinegar its sour taste.'],
+  ['N2H4', 'Hydrazine', 'A rocket fuel that some spacecraft use for steering.'],
+  ['HOCl', 'Hypochlorous acid', 'The chemical that actually disinfects pool water.']
+];
+
+function parseFormula(f) {
+  const counts = {};
+  const re = /([A-Z][a-z]?)(\d*)/g;
+  let m;
+  while ((m = re.exec(f))) counts[m[1]] = (counts[m[1]] || 0) + (m[2] ? parseInt(m[2], 10) : 1);
+  return counts;
+}
+function hillKey(counts) {
+  const syms = Object.keys(counts);
+  let order;
+  if (counts.C) order = ['C', ...(counts.H ? ['H'] : []), ...syms.filter(s => s !== 'C' && s !== 'H').sort()];
+  else order = syms.sort();
+  return order.map(s => s + (counts[s] > 1 ? counts[s] : '')).join('');
+}
+const KNOWN = {};
+for (const [f, name, note] of KNOWN_LIST) KNOWN[hillKey(parseFormula(f))] = { formula: f, name, note };
+
+function prettyFormula(f) { return f.replace(/\d+/g, d => sub(d)); }
+
+/* --- molecule state --- */
+function newMolecule() { return { atoms: [], bonds: [], nextId: 1 }; }
+const isMetal = el => BUILDER[el].metal;
+function atomById(mol, id) { return mol.atoms.find(a => a.id === id); }
+function bondsOf(mol, id) { return mol.bonds.filter(b => b.a === id || b.b === id); }
+function usedSlots(mol, id) { return bondsOf(mol, id).reduce((t, b) => t + b.order, 0); }
+function freeSlots(mol, id) { const a = atomById(mol, id); return BUILDER[a.el].slots - usedSlots(mol, id); }
+function canBond(elA, elB) { return !(isMetal(elA) && isMetal(elB)); }
+function bondBetween(mol, a, b) { return mol.bonds.find(x => (x.a === a && x.b === b) || (x.a === b && x.b === a)); }
+
+function upgradeBonds(mol) {
+  let changed = true, guard = 0;
+  while (changed && guard++ < 200) {
+    changed = false;
+    for (const b of mol.bonds) {
+      const maxOrder = b.ionic ? 3 : 3;
+      if (b.order < maxOrder && freeSlots(mol, b.a) > 0 && freeSlots(mol, b.b) > 0) { b.order++; changed = true; }
+    }
+  }
+}
+
+function makeAtom(mol, el, pos) {
+  const a = { id: mol.nextId++, el, pos: pos || [0, 0, 0], vel: [0, 0, 0], lps: [] };
+  mol.atoms.push(a);
+  return a;
+}
+
+function randUnit() {
+  const u = Math.random() * 2 - 1, t = Math.random() * Math.PI * 2, s = Math.sqrt(1 - u * u);
+  return [s * Math.cos(t), u, s * Math.sin(t)];
+}
+
+function bondLength(elA, elB, order, ionic) {
+  const s = BUILDER[elA].r + BUILDER[elB].r;
+  if (ionic) return s * 1.3;
+  return s * 1.35 * (order === 1 ? 1 : order === 2 ? 0.9 : 0.84);
+}
+
+/* Add an atom. targetId = atom the user picked (or null). Returns {ok, msg, id} */
+function addAtom(mol, el, targetId) {
+  let target = targetId != null ? atomById(mol, targetId) : null;
+  if (target && !canBond(target.el, el)) {
+    return { ok: false, msg: `${EL_NAME(el)} and ${EL_NAME(target.el)} are both metals. Metals don't pair up into molecules like this. Instead, metal atoms share a "sea" of loose electrons (metallic bonding).` };
+  }
+  if (target && freeSlots(mol, target.id) <= 0) {
+    // try to free a slot by turning a double/triple bond into a lower one
+    const multi = bondsOf(mol, target.id).filter(b => b.order > 1).sort((x, y) => y.order - x.order)[0];
+    if (multi) multi.order--;
+    else return { ok: false, msg: `That ${EL_NAME(target.el)} atom is already full (${BUILDER[target.el].slots} bond${BUILDER[target.el].slots > 1 ? 's' : ''}). Pick a different atom, or click empty space to let the builder choose.` };
+  }
+  if (!target && mol.atoms.length) {
+    const candidates = mol.atoms.filter(a => canBond(a.el, el));
+    let best = null, bestFree = 0;
+    for (const a of candidates) { const f = freeSlots(mol, a.id); if (f > bestFree) { bestFree = f; best = a; } }
+    if (!best) {
+      // no free spots: try breaking a multiple bond
+      for (const a of candidates) {
+        const multi = bondsOf(mol, a.id).find(b => b.order > 1);
+        if (multi) { multi.order--; best = a; break; }
+      }
+    }
+    target = best;
+  }
+  let pos;
+  if (target) {
+    const u = randUnit();
+    const L = bondLength(target.el, el, 1, isMetal(target.el) !== isMetal(el));
+    pos = [target.pos[0] + u[0] * L, target.pos[1] + u[1] * L, target.pos[2] + u[2] * L];
+  } else if (mol.atoms.length) {
+    const u = randUnit();
+    pos = [u[0] * 4, u[1] * 4, u[2] * 4];
+  } else pos = [0, 0, 0];
+  const a = makeAtom(mol, el, pos);
+  let msg;
+  if (target) {
+    const ionic = isMetal(target.el) !== isMetal(el);
+    mol.bonds.push({ a: target.id, b: a.id, order: 1, ionic });
+    upgradeBonds(mol);
+    const bond = bondBetween(mol, target.id, a.id);
+    const kind = ionic ? 'an ionic bond' : bond.order === 1 ? 'a single covalent bond' : bond.order === 2 ? 'a double covalent bond' : 'a triple covalent bond';
+    msg = `${EL_NAME(el)} joined ${EL_NAME(target.el)} with ${kind}.`;
+  } else if (mol.atoms.length > 1) {
+    msg = `${EL_NAME(el)} is floating on its own because no atom had room for another bond (or they're all metals).`;
+  } else msg = `${EL_NAME(el)} placed. Add another atom to bond with it.`;
+  syncLonePairs(mol);
+  return { ok: true, msg, id: a.id };
+}
+
+function removeAtom(mol, id) {
+  mol.bonds = mol.bonds.filter(b => b.a !== id && b.b !== id);
+  mol.atoms = mol.atoms.filter(a => a.id !== id);
+  upgradeBonds(mol);
+  syncLonePairs(mol);
+}
+
+function loadPreset(mol, preset) {
+  mol.atoms = []; mol.bonds = []; mol.nextId = 1;
+  const ids = preset.atoms.map((el, i) => {
+    const u = randUnit();
+    const a = makeAtom(mol, el, i === 0 ? [0, 0, 0] : [u[0] * 1.4, u[1] * 1.4, u[2] * 1.4]);
+    return a.id;
+  });
+  // place atoms near their first bonded partner
+  for (const [i, j, order] of preset.bonds) {
+    const A = atomById(mol, ids[i]), B = atomById(mol, ids[j]);
+    const ionic = isMetal(A.el) !== isMetal(B.el);
+    mol.bonds.push({ a: A.id, b: B.id, order, ionic });
+    if (j > i) {
+      const u = randUnit(), L = bondLength(A.el, B.el, order, ionic);
+      B.pos = [A.pos[0] + u[0] * L, A.pos[1] + u[1] * L, A.pos[2] + u[2] * L];
+    }
+  }
+  syncLonePairs(mol);
+}
+
+function EL_NAME(sym) { return BY_SYM[sym] ? BY_SYM[sym].name : sym; }
+
+/* lone pairs + charges */
+function atomElectrons(mol, a) {
+  const B = BUILDER[a.el];
+  const bs = bondsOf(mol, a.id);
+  const ionicOrders = bs.filter(b => b.ionic).reduce((t, b) => t + b.order, 0);
+  const covOrders = bs.filter(b => !b.ionic).reduce((t, b) => t + b.order, 0);
+  let charge = 0;
+  if (ionicOrders) charge = B.metal ? ionicOrders : -ionicOrders;
+  let lonePairs = 0, unpaired = 0;
+  if (!B.metal) {
+    const nonbonding = B.ve - covOrders + (ionicOrders); // electrons it owns that aren't shared (gained ones included)
+    // for ions we still count lone pairs: e.g. Cl- has 8 electrons -> 4 pairs
+    lonePairs = Math.floor(Math.max(0, nonbonding) / 2);
+    unpaired = Math.max(0, nonbonding) % 2;
+    if (a.el === 'H') { lonePairs = nonbonding >= 2 ? 1 : 0; unpaired = nonbonding === 1 ? 1 : 0; }
+  }
+  return { charge, lonePairs, unpaired, ionicOrders, covOrders };
+}
+
+function syncLonePairs(mol) {
+  for (const a of mol.atoms) {
+    const { lonePairs, ionicOrders } = atomElectrons(mol, a);
+    // lone pairs only shape molecules for covalently bonded atoms
+    const want = (!BUILDER[a.el].metal && bondsOf(mol, a.id).some(b => !b.ionic) && !ionicOrders) ? lonePairs : 0;
+    while (a.lps.length < want) {
+      const u = randUnit();
+      a.lps.push({ pos: [a.pos[0] + u[0] * 0.5, a.pos[1] + u[1] * 0.5, a.pos[2] + u[2] * 0.5], vel: [0, 0, 0] });
+    }
+    a.lps.length = want;
+  }
+}
+
+function components(mol) {
+  const seen = new Set(), comps = [];
+  for (const a of mol.atoms) {
+    if (seen.has(a.id)) continue;
+    const stack = [a.id], ids = [];
+    seen.add(a.id);
+    while (stack.length) {
+      const id = stack.pop(); ids.push(id);
+      for (const b of bondsOf(mol, id)) {
+        const o = b.a === id ? b.b : b.a;
+        if (!seen.has(o)) { seen.add(o); stack.push(o); }
+      }
+    }
+    comps.push(ids);
+  }
+  return comps;
+}
+
+function formulaOf(mol, ids) {
+  const counts = {};
+  for (const id of ids) { const a = atomById(mol, id); counts[a.el] = (counts[a.el] || 0) + 1; }
+  const key = hillKey(counts);
+  const known = KNOWN[key] || null;
+  let display = key;
+  if (known) display = known.formula;
+  else {
+    const syms = Object.keys(counts);
+    const metals = syms.filter(s => BUILDER[s].metal).sort();
+    if (metals.length) display = [...metals, ...syms.filter(s => !BUILDER[s].metal).sort()].map(s => s + (counts[s] > 1 ? counts[s] : '')).join('');
+  }
+  return { counts, key, display, known };
+}
+
+function shapeAround(mol, a) {
+  const n = bondsOf(mol, a.id).length;
+  const { lonePairs, unpaired, ionicOrders } = atomElectrons(mol, a);
+  if (n < 2 || ionicOrders) return null;
+  const lp = lonePairs + unpaired;
+  const d = n + lp;
+  const table = {
+    '2-0': ['Linear', 'The two bonds point in opposite directions, 180° apart.'],
+    '3-0': ['Trigonal planar', 'Three bonds spread out flat, 120° apart, like a peace sign.'],
+    '2-1': ['Bent', 'One lone pair pushes the two bonds closer together.'],
+    '4-0': ['Tetrahedral', 'Four bonds point to the corners of a pyramid with a triangle base, about 109.5° apart.'],
+    '3-1': ['Trigonal pyramidal', 'A lone pair sits on top and pushes three bonds down into a pyramid.'],
+    '2-2': ['Bent', 'Two lone pairs push the two bonds together into a V shape (about 104.5° in water).']
+  };
+  const t = table[n + '-' + lp];
+  if (!t) return { name: d + ' electron groups', why: 'Bonds and lone pairs spread out as far from each other as they can.' };
+  return { name: t[0], why: t[1] };
+}
+
+/* force layout: bonds are springs, everything pushes everything else apart */
+function layoutStep(mol, dt) {
+  const nodes = [];
+  for (const a of mol.atoms) {
+    nodes.push({ p: a.pos, v: a.vel, atom: a, lp: false, f: [0, 0, 0] });
+    for (const l of a.lps) nodes.push({ p: l.pos, v: l.vel, atom: a, lp: true, f: [0, 0, 0] });
+  }
+  const n = nodes.length;
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+    const A = nodes[i], B = nodes[j];
+    if (A.atom === B.atom && (A.lp || B.lp) && !(A.lp && B.lp)) continue; // a lone pair doesn't push its own atom
+    let dx = A.p[0] - B.p[0], dy = A.p[1] - B.p[1], dz = A.p[2] - B.p[2];
+    let d2 = dx * dx + dy * dy + dz * dz;
+    if (d2 < 1e-6) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; dz = Math.random() - 0.5; d2 = 0.01; }
+    const d = Math.sqrt(d2);
+    if (d > 9) continue;
+    let k = 1.2;
+    if (A.lp && B.lp) k = A.atom === B.atom ? 1.5 : 0.6;
+    else if (A.lp || B.lp) k = 1.35;
+    const F = Math.min(40, k / Math.max(d2, 0.09));
+    const fx = dx / d * F, fy = dy / d * F, fz = dz / d * F;
+    A.f[0] += fx; A.f[1] += fy; A.f[2] += fz;
+    B.f[0] -= fx; B.f[1] -= fy; B.f[2] -= fz;
+  }
+  const nodeOf = new Map();
+  for (const nd of nodes) if (!nd.lp) nodeOf.set(nd.atom.id, nd);
+  for (const b of mol.bonds) {
+    const A = nodeOf.get(b.a), B = nodeOf.get(b.b);
+    if (!A || !B) continue;
+    const L = bondLength(A.atom.el, B.atom.el, b.order, b.ionic);
+    const dx = B.p[0] - A.p[0], dy = B.p[1] - A.p[1], dz = B.p[2] - A.p[2];
+    const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.001;
+    const F = 14 * (d - L);
+    const fx = dx / d * F, fy = dy / d * F, fz = dz / d * F;
+    A.f[0] += fx; A.f[1] += fy; A.f[2] += fz;
+    B.f[0] -= fx; B.f[1] -= fy; B.f[2] -= fz;
+  }
+  for (const nd of nodes) {
+    if (nd.lp) {
+      const c = nd.atom.pos;
+      const L = BUILDER[nd.atom.el].r + 0.28;
+      const dx = c[0] - nd.p[0], dy = c[1] - nd.p[1], dz = c[2] - nd.p[2];
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.001;
+      const F = 16 * (d - L);
+      nd.f[0] += dx / d * F; nd.f[1] += dy / d * F; nd.f[2] += dz / d * F;
+      const host = nodeOf.get(nd.atom.id);
+      host.f[0] -= dx / d * F; host.f[1] -= dy / d * F; host.f[2] -= dz / d * F;
+    } else {
+      nd.f[0] -= 0.04 * nd.p[0]; nd.f[1] -= 0.04 * nd.p[1]; nd.f[2] -= 0.04 * nd.p[2];
+    }
+  }
+  let energy = 0;
+  for (const nd of nodes) {
+    for (let k = 0; k < 3; k++) {
+      nd.v[k] = (nd.v[k] + nd.f[k] * dt) * 0.9;
+      if (nd.v[k] > 6) nd.v[k] = 6; else if (nd.v[k] < -6) nd.v[k] = -6;
+      nd.p[k] += nd.v[k] * dt;
+      energy += nd.v[k] * nd.v[k];
+    }
+  }
+  // keep the whole thing centred
+  if (mol.atoms.length) {
+    const c = [0, 0, 0];
+    for (const a of mol.atoms) for (let k = 0; k < 3; k++) c[k] += a.pos[k] / mol.atoms.length;
+    for (const nd of nodes) for (let k = 0; k < 3; k++) nd.p[k] -= c[k] * 0.1;
+  }
+  return energy;
+}
+
+if (typeof module !== 'undefined') module.exports = {
+  EL, BY_SYM, CATS, category, stateAtRoomTemp, tablePosition, electronConfig, configString, stability, optimalN,
+  bindingEnergyMeV, FACTS, BUILDER, PRESETS, KNOWN, hillKey, parseFormula, newMolecule, addAtom, removeAtom,
+  loadPreset, freeSlots, atomElectrons, components, formulaOf, shapeAround, layoutStep, bondBetween, chargeText, ISOTOPE_NOTES
+};
+
+</script>
+<script>
+'use strict';
+(function () {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const stage = $('#stage');
+  const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const TAU = Math.PI * 2;
+
+  function fail(msg) { const n = $('#nogl'); n.hidden = false; n.querySelector('p').textContent = msg; }
+
+  /* ================= STATE ================= */
+  const S = {
+    mode: 'atom', Z: 6, N: 6, E: 6, model: 'bohr',
+    layers: { protons: true, neutrons: true, quarks: false, rings: true, electrons: true, cloud: false, labels: true },
+    hiddenShells: new Set(), flat: false, trueScale: false,
+    speed: reduceMotion ? 0.25 : 1, autoRotate: !reduceMotion,
+    part: null, lastAction: 'start',
+    molStyle: 'ball', molLabels: true, molElectrons: true, molOpen: true, molRotate: !reduceMotion, selected: null,
+    molMsg: null, molMsgBad: false
+  };
+  const mol = newMolecule();
+
+  /* ================= TEXT ================= */
+  const PARTS = {
+    proton: {
+      title: 'Proton', sw: 'p',
+      facts: [['Charge', '+1'], ['Mass', '1.673 × 10⁻²⁷ kg (about 1 u)'], ['Lives in', 'the nucleus'], ['Made of', '2 up quarks + 1 down quark']],
+      text: 'Protons carry a positive charge. The number of protons is the atomic number, and it decides which element the atom is. Every carbon atom has exactly 6 protons. Add one and it is nitrogen instead.'
+    },
+    neutron: {
+      title: 'Neutron', sw: 'n',
+      facts: [['Charge', '0 (neutral)'], ['Mass', '1.675 × 10⁻²⁷ kg, a tiny bit more than a proton'], ['Lives in', 'the nucleus'], ['Made of', '1 up quark + 2 down quarks']],
+      text: 'Neutrons have no charge. Protons repel each other because like charges push apart, so the nucleus needs neutrons to help hold it together with the strong nuclear force. Atoms of the same element with different numbers of neutrons are called isotopes.'
+    },
+    electron: {
+      title: 'Electron', sw: 'e',
+      facts: [['Charge', '−1'], ['Mass', '9.109 × 10⁻³¹ kg, about 1/1836 of a proton'], ['Lives in', 'shells around the nucleus'], ['Made of', 'nothing smaller that we know of']],
+      text: 'Electrons are pulled toward the positive nucleus, but they have so much energy that they never fall in. They live in shells, also called energy levels. Electrons do all of chemistry: bonding, electricity, and even the glow of a neon sign, which happens when electrons drop from a higher shell to a lower one and give off light.'
+    },
+    valence: {
+      title: 'Valence electron', sw: 'v',
+      facts: [['Charge', '−1'], ['Where', 'the outermost shell'], ['Job', 'making bonds']],
+      text: 'These are the electrons in the outermost shell, shown in amber. They are the ones an atom shares, gives away or grabs when it bonds with another atom. Atoms are most stable with a full outer shell, which is usually 8 electrons (or 2 for hydrogen and helium). This is called the octet rule.'
+    },
+    up: {
+      title: 'Up quark', sw: 'u',
+      facts: [['Charge', '+⅔'], ['Found in', '2 in every proton, 1 in every neutron']],
+      text: 'Quarks are the smallest known pieces of protons and neutrons. You can never pull one quark out by itself: the force between quarks gets stronger as they get farther apart, like a rubber band. Pull hard enough and the energy makes brand-new quarks instead.'
+    },
+    down: {
+      title: 'Down quark', sw: 'd',
+      facts: [['Charge', '−⅓'], ['Found in', '1 in every proton, 2 in every neutron']],
+      text: 'Add up the charges. A proton is up + up + down: ⅔ + ⅔ − ⅓ = +1. A neutron is up + down + down: ⅔ − ⅓ − ⅓ = 0. That is why the neutron has no charge!'
+    },
+    gluon: {
+      title: 'Gluons (the strong force)', sw: 'lbl',
+      facts: [['Charge', '0'], ['Job', 'holding quarks together']],
+      text: 'The thin white lines stand for gluons, the particles that carry the strong force between quarks. Their name comes from "glue". The strong force is the strongest force in nature, about 100 times stronger than the electric push between protons, but it only works over tiny distances.'
+    },
+    cloud: {
+      title: 'Electron cloud', sw: 'cloud',
+      facts: [['Model', 'quantum mechanics'], ['Shapes', 's sphere, p dumbbell, d cloverleaf, f flower']],
+      text: 'Electrons don\'t really travel on neat paths. Quantum physics says we can only know where an electron is likely to be, so we draw a cloud of possible spots. Thicker cloud means the electron is more likely to be there. The regions are called orbitals, and each orbital holds at most 2 electrons.'
+    }
+  };
+
+  /* ================= THREE SETUP ================= */
+  if (!window.THREE || !THREE.OrbitControls) {
+    fail('The 3D library could not load. Check your internet connection and reload the page.');
+    return;
+  }
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas: $('#gl'), antialias: true });
+  } catch (err) {
+    fail('Your browser could not start 3D graphics (WebGL). Try another browser or turn on hardware acceleration.');
+    return;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x0a0f1d, 1);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.0005, 600);
+  camera.position.set(0, 3.6, 14);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 0.02;
+  controls.maxDistance = 140;
+  controls.autoRotate = S.autoRotate;
+  controls.autoRotateSpeed = 0.55;
+  controls.zoomSpeed = 0.9;
+
+  scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x22152f, 0.85));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 0.9); keyLight.position.set(6, 9, 7); scene.add(keyLight);
+  const rimLight = new THREE.DirectionalLight(0x7f9cff, 0.5); rimLight.position.set(-7, -4, -6); scene.add(rimLight);
+
+  function radialTex(stops, ring) {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d');
+    if (ring) {
+      g.strokeStyle = 'rgba(255,255,255,1)'; g.lineWidth = 3;
+      g.beginPath(); g.arc(32, 32, 26, 0, TAU); g.stroke();
+    } else {
+      const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      stops.forEach(([o, col]) => gr.addColorStop(o, col));
+      g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    }
+    return new THREE.CanvasTexture(c);
+  }
+  const glowTex = radialTex([[0, 'rgba(255,255,255,1)'], [0.22, 'rgba(255,255,255,.5)'], [1, 'rgba(255,255,255,0)']]);
+  const dotTex = radialTex([[0, 'rgba(255,255,255,1)'], [0.4, 'rgba(255,255,255,.55)'], [1, 'rgba(255,255,255,0)']]);
+  const ringTex = radialTex(null, true);
+
+  // faint dust far away for depth
+  (function dust() {
+    const n = 700, arr = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const u = Math.random() * 2 - 1, t = Math.random() * TAU, s = Math.sqrt(1 - u * u), r = 70 + Math.random() * 120;
+      arr[i * 3] = s * Math.cos(t) * r; arr[i * 3 + 1] = u * r; arr[i * 3 + 2] = s * Math.sin(t) * r;
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0x5b6b95, size: 0.9, map: dotTex, transparent: true, opacity: 0.6, depthWrite: false })));
+  })();
+
+  const RN = 0.3; // nucleon radius in scene units
+  const COL = { proton: 0xff5a5f, neutron: 0xaeb9d6, electron: 0x46c8ff, valence: 0xffb547, ring: 0x7d93d6, up: 0xffe08a, down: 0x5ee0d0 };
+  const ORB_COL = [0x59d4ff, 0xa98bff, 0xff7fb8, 0x77e6b5];
+  const G = {
+    nucleon: new THREE.SphereGeometry(RN, 24, 16),
+    quark: new THREE.SphereGeometry(RN * 0.27, 12, 8),
+    electron: new THREE.SphereGeometry(0.13, 16, 12),
+    ball: new THREE.SphereGeometry(1, 32, 20),
+    bond: new THREE.CylinderGeometry(1, 1, 1, 14, 1),
+    dot: new THREE.SphereGeometry(0.055, 10, 8),
+    dash: new THREE.SphereGeometry(0.045, 8, 6)
+  };
+  const M = {
+    proton: new THREE.MeshStandardMaterial({ color: COL.proton, roughness: 0.36, metalness: 0.04, emissive: 0x3d070a }),
+    neutron: new THREE.MeshStandardMaterial({ color: COL.neutron, roughness: 0.42, metalness: 0.04, emissive: 0x0d1424 }),
+    up: new THREE.MeshStandardMaterial({ color: COL.up, roughness: 0.3, emissive: 0x6b5410 }),
+    down: new THREE.MeshStandardMaterial({ color: COL.down, roughness: 0.3, emissive: 0x0f5a52 }),
+    gluon: new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }),
+    electron: new THREE.MeshStandardMaterial({ color: COL.electron, emissive: 0x1680c0, emissiveIntensity: 1, roughness: 0.25 }),
+    valence: new THREE.MeshStandardMaterial({ color: COL.valence, emissive: 0xb06400, emissiveIntensity: 1, roughness: 0.25 }),
+    electronGlow: new THREE.SpriteMaterial({ map: glowTex, color: COL.electron, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }),
+    valenceGlow: new THREE.SpriteMaterial({ map: glowTex, color: COL.valence, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }),
+    ring: new THREE.MeshBasicMaterial({ color: COL.ring, transparent: true, opacity: 0.55 }),
+    ringOuter: new THREE.MeshBasicMaterial({ color: COL.valence, transparent: true, opacity: 0.8 }),
+    hidden: new THREE.MeshBasicMaterial({ visible: false }),
+    marker: new THREE.SpriteMaterial({ map: ringTex, color: COL.valence, transparent: true, depthWrite: false, depthTest: false }),
+    orb: ORB_COL.map(c => new THREE.PointsMaterial({ color: c, size: 0.075, map: dotTex, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending })),
+    select: new THREE.MeshBasicMaterial({ color: COL.valence, transparent: true, opacity: 0.25, depthWrite: false }),
+    openGlow: new THREE.SpriteMaterial({ map: glowTex, color: COL.valence, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }),
+    ionic: new THREE.MeshBasicMaterial({ color: COL.valence })
+  };
+  const elMat = {};
+  function matFor(sym) {
+    if (!elMat[sym]) elMat[sym] = new THREE.MeshStandardMaterial({ color: BUILDER[sym].color, roughness: 0.42, metalness: 0.06 });
+    return elMat[sym];
+  }
+
+  const atomRoot = new THREE.Group(); scene.add(atomRoot);
+  const nucleusGroup = new THREE.Group(); atomRoot.add(nucleusGroup);
+  const shellsRoot = new THREE.Group(); atomRoot.add(shellsRoot);
+  const cloudRoot = new THREE.Group(); atomRoot.add(cloudRoot);
+  const centerMarker = new THREE.Sprite(M.marker); centerMarker.visible = false; atomRoot.add(centerMarker);
+  const molRoot = new THREE.Group(); scene.add(molRoot); molRoot.visible = false;
+  const FLAT_Q = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
+
+  /* ================= HELPERS ================= */
+  function rng32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function gauss(r) { return Math.sqrt(-2 * Math.log(r() + 1e-9)) * Math.cos(TAU * r()); }
+  function sci(x, digits = 2) {
+    const [m, e] = x.toExponential(digits).split('e');
+    return `${m} × 10${sup(String(parseInt(e, 10)).replace('-', '-'))}`;
+  }
+  function fmt(x, d = 2) { return x.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 }); }
+
+  function packBall(n, rng) {
+    const P = new Float32Array(n * 3);
+    if (n === 0) return { P, R: 0 };
+    const R0 = RN * Math.cbrt(n / 0.55);
+    for (let i = 0; i < n; i++) {
+      let x, y, z;
+      do { x = rng() * 2 - 1; y = rng() * 2 - 1; z = rng() * 2 - 1; } while (x * x + y * y + z * z > 1);
+      const s = n === 1 ? 0 : R0;
+      P[i * 3] = x * s; P[i * 3 + 1] = y * s; P[i * 3 + 2] = z * s;
+    }
+    const min = RN * 2 * 0.96, min2 = min * min;
+    const iters = n > 160 ? 30 : 48;
+    for (let it = 0; it < iters + 6; it++) {
+      for (let i = 0; i < n; i++) {
+        const ix = i * 3;
+        for (let j = i + 1; j < n; j++) {
+          const jx = j * 3;
+          let dx = P[ix] - P[jx], dy = P[ix + 1] - P[jx + 1], dz = P[ix + 2] - P[jx + 2];
+          let d2 = dx * dx + dy * dy + dz * dz;
+          if (d2 < min2) {
+            if (d2 < 1e-10) { dx = 1e-3 * (rng() - 0.5); dy = 1e-3; dz = 0; d2 = dx * dx + dy * dy; }
+            const d = Math.sqrt(d2), push = (min - d) * 0.5 / d;
+            P[ix] += dx * push; P[ix + 1] += dy * push; P[ix + 2] += dz * push;
+            P[jx] -= dx * push; P[jx + 1] -= dy * push; P[jx + 2] -= dz * push;
+          }
+        }
+      }
+      if (it < iters) for (let k = 0; k < n * 3; k++) P[k] *= 0.968;
+    }
+    let R = 0;
+    for (let i = 0; i < n; i++) R = Math.max(R, Math.hypot(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]));
+    return { P, R: R + RN };
+  }
+
+  /* orbital angular shapes on a unit direction */
+  const ORBITALS = [
+    [() => 1],
+    [(x) => x, (x, y) => y, (x, y, z) => z],
+    [(x, y) => 2 * x * y, (x, y, z) => 2 * x * z, (x, y, z) => 2 * y * z, (x, y) => x * x - y * y, (x, y, z) => (3 * z * z - 1) / 2],
+    [(x, y, z) => z * (5 * z * z - 3), (x, y, z) => x * (5 * z * z - 1), (x, y, z) => y * (5 * z * z - 1), (x, y, z) => x * y * z,
+      (x, y, z) => z * (x * x - y * y), (x, y) => x * (x * x - 3 * y * y), (x, y) => y * (3 * x * x - y * y)]
+  ];
+  const ORB_MAX = ORBITALS.map(list => list.map(fn => {
+    let m = 0;
+    for (let i = 0; i < 6000; i++) {
+      const u = Math.random() * 2 - 1, t = Math.random() * TAU, s = Math.sqrt(1 - u * u);
+      m = Math.max(m, Math.abs(fn(s * Math.cos(t), s * Math.sin(t), u)));
+    }
+    return m || 1;
+  }));
+
+  /* ================= ATOM BUILD ================= */
+  let A = null; // everything about the currently built atom
+  let disposables = [];
+  const m4 = new THREE.Matrix4();
+
+  function clearGroup(g) { while (g.children.length) g.remove(g.children[g.children.length - 1]); }
+  function disposeAll() {
+    disposables.forEach(d => { try { d.dispose(); } catch (e) { /* ignore */ } });
+    disposables = [];
+    clearGroup(nucleusGroup); clearGroup(shellsRoot); clearGroup(cloudRoot);
+  }
+
+  function buildAtom() {
+    disposeAll();
+    const Z = S.Z, N = S.N, total = Z + N;
+    const rng = rng32(Z * 7919 + N * 104729 + 17);
+    const { P, R } = packBall(total, rng);
+    const types = Array.from({ length: total }, (_, i) => (i < Z ? 'p' : 'n'));
+    for (let i = total - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [types[i], types[j]] = [types[j], types[i]]; }
+
+    const pMesh = new THREE.InstancedMesh(G.nucleon, M.proton, Math.max(1, Z)); pMesh.count = Z;
+    const nMesh = new THREE.InstancedMesh(G.nucleon, M.neutron, Math.max(1, N)); nMesh.count = N;
+    pMesh.userData.kind = 'proton'; nMesh.userData.kind = 'neutron';
+    let pi = 0, ni = 0;
+    const nucleons = [];
+    let labelP = -1, labelN = -1, bestP = -1e9, bestN = -1e9;
+    for (let i = 0; i < total; i++) {
+      const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2];
+      m4.makeTranslation(x, y, z);
+      if (types[i] === 'p') {
+        pMesh.setMatrixAt(pi, m4);
+        const score = 0.45 * x + 0.62 * y + 0.64 * z;
+        if (score > bestP) { bestP = score; labelP = i; }
+        nucleons.push({ i, type: 'p', idx: pi++ });
+      } else {
+        nMesh.setMatrixAt(ni, m4);
+        const score = -0.6 * x + 0.35 * y + 0.7 * z;
+        if (score > bestN) { bestN = score; labelN = i; }
+        nucleons.push({ i, type: 'n', idx: ni++ });
+      }
+    }
+    pMesh.instanceMatrix.needsUpdate = true; nMesh.instanceMatrix.needsUpdate = true;
+    pMesh.visible = Z > 0; nMesh.visible = N > 0;
+    pMesh.frustumCulled = nMesh.frustumCulled = false;
+    nucleusGroup.add(pMesh, nMesh);
+    disposables.push(pMesh, nMesh);
+
+    // quarks: each nucleon gets three quarks swirling in a little plane
+    const basis = new Float32Array(total * 6), phase = new Float32Array(total);
+    const tmpN = new THREE.Vector3(), tmpU = new THREE.Vector3(), tmpV = new THREE.Vector3();
+    for (let i = 0; i < total; i++) {
+      tmpN.set(rng() * 2 - 1, rng() * 2 - 1, rng() * 2 - 1).normalize();
+      tmpU.set(1, 0, 0); if (Math.abs(tmpN.x) > 0.9) tmpU.set(0, 1, 0);
+      tmpU.cross(tmpN).normalize(); tmpV.copy(tmpN).cross(tmpU);
+      basis.set([tmpU.x, tmpU.y, tmpU.z, tmpV.x, tmpV.y, tmpV.z], i * 6);
+      phase[i] = rng() * TAU;
+    }
+    const upCount = 2 * Z + N, downCount = Z + 2 * N;
+    const uMesh = new THREE.InstancedMesh(G.quark, M.up, Math.max(1, upCount)); uMesh.count = upCount; uMesh.userData.kind = 'up';
+    const dMesh = new THREE.InstancedMesh(G.quark, M.down, Math.max(1, downCount)); dMesh.count = downCount; dMesh.userData.kind = 'down';
+    const gGeo = new THREE.BufferGeometry();
+    gGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(Math.max(1, total) * 18), 3));
+    const gluons = new THREE.LineSegments(gGeo, M.gluon);
+    uMesh.frustumCulled = dMesh.frustumCulled = gluons.frustumCulled = false;
+    const quarkGroup = new THREE.Group(); quarkGroup.add(uMesh, dMesh, gluons);
+    nucleusGroup.add(quarkGroup);
+    disposables.push(uMesh, dMesh, gGeo);
+
+    // electrons
+    const cfg = electronConfig(Z, S.E);
+    const base = R + 1.15, gapR = 1.05;
+    const shells = cfg.shells.map((count, i) => {
+      const n = i + 1, Rn = base + i * gapR, outer = i === cfg.shells.length - 1;
+      const tilt = new THREE.Group();
+      const bohrQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.42 + 0.5 * Math.sin(i * 2.3 + 0.5), i * 1.25 + 0.3, 0.3 * Math.cos(i * 1.9), 'YXZ'));
+      tilt.quaternion.copy(S.flat ? FLAT_Q : bohrQ);
+      const rg = new THREE.TorusGeometry(Rn, outer ? 0.02 : 0.014, 6, 240);
+      const ring = new THREE.Mesh(rg, outer ? M.ringOuter : M.ring); ring.rotation.x = Math.PI / 2;
+      const hg = new THREE.TorusGeometry(Rn, 0.17, 6, 90);
+      const hit = new THREE.Mesh(hg, M.hidden); hit.rotation.x = Math.PI / 2; hit.userData = { kind: 'shell', n };
+      disposables.push(rg, hg);
+      const spin = new THREE.Group();
+      const electrons = [];
+      for (let k = 0; k < count; k++) {
+        const a = i * 0.7 + (k / count) * TAU;
+        const e = new THREE.Mesh(G.electron, outer ? M.valence : M.electron);
+        e.position.set(Math.cos(a) * Rn, 0, Math.sin(a) * Rn);
+        e.userData = { kind: outer ? 'valence' : 'electron', n };
+        const glow = new THREE.Sprite(outer ? M.valenceGlow : M.electronGlow); glow.scale.set(0.8, 0.8, 1);
+        e.add(glow);
+        spin.add(e); electrons.push(e);
+      }
+      tilt.add(ring, hit, spin);
+      shellsRoot.add(tilt);
+      return { n, Rn, count, outer, tilt, bohrQ, ring, hit, spin, electrons };
+    });
+
+    // clouds
+    const cloudShells = {};
+    const totalE = Math.max(1, S.E);
+    const perE = Math.min(260, 26000 / totalE);
+    const crng = rng32(Z * 31 + S.E * 7 + 3);
+    const ptSize = 0.065 + 0.006 * cfg.shells.length;
+    const cloudInfo = {}; // highest n with each l, for labels
+    for (const ss of cfg.subshells) {
+      const shell = shells[ss.n - 1]; if (!shell) continue;
+      const Rn = shell.Rn, fns = ORBITALS[ss.l], maxes = ORB_MAX[ss.l], m = fns.length;
+      const pts = [];
+      for (let k = 0; k < m; k++) {
+        const ek = ss.e <= m ? (k < ss.e ? 1 : 0) : (k < ss.e - m ? 2 : 1);
+        if (!ek) continue;
+        const want = Math.round(ek * perE * (ss.l === 0 ? 1 : 1.15));
+        let made = 0, tries = 0;
+        while (made < want && tries < want * 80) {
+          tries++;
+          const u = crng() * 2 - 1, t = crng() * TAU, s = Math.sqrt(1 - u * u);
+          const x = s * Math.cos(t), y = s * Math.sin(t), z = u;
+          const f = fns[k](x, y, z) / maxes[k];
+          if (crng() > f * f) continue;
+          const r = ss.l === 0 ? Rn * (1 + 0.17 * gauss(crng)) : Rn * (0.2 + 1.02 * Math.pow(crng(), 0.75));
+          pts.push(x * r, y * r, z * r); made++;
+        }
+      }
+      if (!pts.length) continue;
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      disposables.push(geo);
+      const mat = M.orb[ss.l]; mat.size = ptSize;
+      const points = new THREE.Points(geo, mat);
+      if (!cloudShells[ss.n]) { cloudShells[ss.n] = new THREE.Group(); cloudRoot.add(cloudShells[ss.n]); }
+      cloudShells[ss.n].add(points);
+      if (!cloudInfo[ss.l] || cloudInfo[ss.l].n < ss.n) cloudInfo[ss.l] = { n: ss.n, R: Rn };
+    }
+
+    const outerR = shells.length ? shells[shells.length - 1].Rn : R;
+    A = { Z, N, E: S.E, P, R, nucleons, types, basis, phase, pMesh, nMesh, uMesh, dMesh, gluons, quarkGroup, shells, cfg, cloudShells, cloudInfo, outerR, labelP, labelN, quarkPos: new Float32Array(total * 9) };
+    updateQuarks(0, true);
+  }
+
+  function trueScaleFactor() {
+    if (!A) return 1;
+    // a real nucleus is tens of thousands of times smaller across than its atom
+    return Math.max(1e-6, (A.outerR / 40000) / A.R);
+  }
+
+  function updateQuarks(t, force) {
+    if (!A || (!S.layers.quarks && !force)) return;
+    const { nucleons, basis, phase, P, uMesh, dMesh, gluons, quarkPos } = A;
+    const gl = gluons.geometry.attributes.position.array;
+    let ui = 0, di = 0;
+    const rq = RN * 0.46;
+    for (let j = 0; j < nucleons.length; j++) {
+      const nc = nucleons[j], i = nc.i;
+      const cx = P[i * 3], cy = P[i * 3 + 1], cz = P[i * 3 + 2];
+      const b = i * 6, th0 = phase[i] + t * 1.6;
+      const kinds = nc.type === 'p' ? 'uud' : 'udd';
+      for (let k = 0; k < 3; k++) {
+        const th = th0 + k * TAU / 3, c = Math.cos(th) * rq, s = Math.sin(th) * rq;
+        const x = cx + c * basis[b] + s * basis[b + 3];
+        const y = cy + c * basis[b + 1] + s * basis[b + 4];
+        const z = cz + c * basis[b + 2] + s * basis[b + 5];
+        quarkPos[i * 9 + k * 3] = x; quarkPos[i * 9 + k * 3 + 1] = y; quarkPos[i * 9 + k * 3 + 2] = z;
+        m4.makeTranslation(x, y, z);
+        if (kinds[k] === 'u') uMesh.setMatrixAt(ui++, m4); else dMesh.setMatrixAt(di++, m4);
+      }
+      const q = i * 9, o = j * 18;
+      const pairs = [[0, 1], [1, 2], [2, 0]];
+      for (let p = 0; p < 3; p++) {
+        const [a1, a2] = pairs[p];
+        gl[o + p * 6] = quarkPos[q + a1 * 3]; gl[o + p * 6 + 1] = quarkPos[q + a1 * 3 + 1]; gl[o + p * 6 + 2] = quarkPos[q + a1 * 3 + 2];
+        gl[o + p * 6 + 3] = quarkPos[q + a2 * 3]; gl[o + p * 6 + 4] = quarkPos[q + a2 * 3 + 1]; gl[o + p * 6 + 5] = quarkPos[q + a2 * 3 + 2];
+      }
+    }
+    uMesh.instanceMatrix.needsUpdate = true; dMesh.instanceMatrix.needsUpdate = true;
+    gluons.geometry.attributes.position.needsUpdate = true;
+  }
+
+  function applyLayers() {
+    if (!A) return;
+    const L = S.layers;
+    A.pMesh.visible = L.protons && A.Z > 0;
+    A.nMesh.visible = L.neutrons && A.N > 0;
+    A.quarkGroup.visible = L.quarks && A.Z + A.N > 0;
+    const see = L.quarks ? 0.2 : 1;
+    if (M.proton.transparent !== L.quarks) {
+      M.proton.transparent = M.neutron.transparent = L.quarks;
+      M.proton.needsUpdate = M.neutron.needsUpdate = true;
+    }
+    M.proton.opacity = see; M.neutron.opacity = see;
+    M.proton.depthWrite = !L.quarks; M.neutron.depthWrite = !L.quarks;
+    for (const sh of A.shells) {
+      const on = !S.hiddenShells.has(sh.n);
+      sh.ring.visible = L.rings && on;
+      sh.spin.visible = L.electrons && on;
+    }
+    for (const n in A.cloudShells) A.cloudShells[n].visible = L.cloud && !S.hiddenShells.has(+n);
+    $('#labels').hidden = S.mode === 'atom' ? !L.labels : !S.molLabels;
+    renderLegend();
+  }
+
+  /* ================= LABELS ================= */
+  const labelsEl = $('#labels');
+  const labels = [];
+  const tv = new THREE.Vector3();
+  function addLabel(html, color, getPos, cls) {
+    const el = document.createElement('div');
+    el.className = 'lbl' + (cls ? ' ' + cls : '');
+    if (color) el.style.setProperty('--c', color);
+    if (cls && /\bflip\b/.test(cls)) el.dataset.flip = '1';
+    el.innerHTML = `<i class="pin"></i><span class="lead"></span><span class="txt">${html}</span>`;
+    labelsEl.appendChild(el);
+    const L = { el, getPos, shown: true };
+    labels.push(L);
+    return L;
+  }
+  function clearLabels() { labels.forEach(l => l.el.remove()); labels.length = 0; }
+
+  function buildAtomLabels() {
+    clearLabels();
+    if (!A) return;
+    const L = S.layers;
+    const sym = EL[A.Z - 1].sym;
+    addLabel(`Nucleus<em>${A.Z} p⁺ + ${A.N} n⁰</em>`, '#e8ecf6', v => {
+      if (!(L.protons || L.neutrons) || S.trueScale) return null;
+      const s = nucleusGroup.scale.x;
+      return v.set(-A.R * 0.55 * s, A.R * 0.8 * s, A.R * 0.2 * s);
+    });
+    addLabel('Nucleus is here<em>too small to see at real size</em>', '#ffb547', v => (S.trueScale ? v.set(0, 0, 0) : null));
+    if (A.labelP >= 0) addLabel('Proton<em>+1</em>', '#ff5a5f', v => {
+      if (!L.protons || L.quarks || S.trueScale) return null;
+      const i = A.labelP; v.set(A.P[i * 3], A.P[i * 3 + 1], A.P[i * 3 + 2]);
+      return nucleusGroup.localToWorld(v);
+    });
+    if (A.labelN >= 0) addLabel('Neutron<em>0</em>', '#aeb9d6', v => {
+      if (!L.neutrons || L.quarks || S.trueScale) return null;
+      const i = A.labelN; v.set(A.P[i * 3], A.P[i * 3 + 1], A.P[i * 3 + 2]);
+      return nucleusGroup.localToWorld(v);
+    });
+    if (A.labelP >= 0) {
+      const q = A.labelP * 9;
+      addLabel('Up quark<em>+⅔</em>', '#ffe08a', v => {
+        if (!L.quarks || S.trueScale) return null;
+        v.set(A.quarkPos[q], A.quarkPos[q + 1], A.quarkPos[q + 2]); return nucleusGroup.localToWorld(v);
+      });
+      addLabel('Down quark<em>−⅓</em>', '#5ee0d0', v => {
+        if (!L.quarks || S.trueScale) return null;
+        v.set(A.quarkPos[q + 6], A.quarkPos[q + 7], A.quarkPos[q + 8]); return nucleusGroup.localToWorld(v);
+      }, 'flip');
+    }
+    if (A.labelN >= 0) {
+      const q = A.labelN * 9;
+      addLabel('Gluons<em>strong force</em>', '#e8ecf6', v => {
+        if (!L.quarks || S.trueScale) return null;
+        v.set((A.quarkPos[q] + A.quarkPos[q + 3]) / 2, (A.quarkPos[q + 1] + A.quarkPos[q + 4]) / 2, (A.quarkPos[q + 2] + A.quarkPos[q + 5]) / 2);
+        return nucleusGroup.localToWorld(v);
+      });
+    }
+    A.shells.forEach((sh, i) => {
+      const ang = 0.6 + i * 0.55;
+      addLabel(`Shell ${sh.n} · ${SHELL_LETTERS[i]}<em>${sh.count}/${2 * sh.n * sh.n} e⁻${sh.outer ? ' · outer' : ''}</em>`, sh.outer ? '#ffb547' : '#9fb1e6', v => {
+        if (!L.rings || S.hiddenShells.has(sh.n)) return null;
+        v.set(Math.cos(ang) * sh.Rn, 0, Math.sin(ang) * sh.Rn);
+        return sh.tilt.localToWorld(v);
+      });
+    });
+    const outer = A.shells[A.shells.length - 1];
+    if (outer && outer.electrons.length) {
+      addLabel(outer.n === 1 && A.Z <= 2 ? 'Electron<em>−1</em>' : 'Valence electron<em>−1</em>', '#ffb547', v => {
+        if (!L.electrons || S.hiddenShells.has(outer.n)) return null;
+        return outer.electrons[0].getWorldPosition(v);
+      }, 'flip');
+    }
+    const inner = A.shells.find(sh => !sh.outer && sh.electrons.length);
+    if (inner) addLabel('Electron<em>−1</em>', '#46c8ff', v => {
+      if (!L.electrons || S.hiddenShells.has(inner.n)) return null;
+      return inner.electrons[0].getWorldPosition(v);
+    });
+    const ci = A.cloudInfo;
+    const orbLabel = (l, text, dir) => {
+      if (!ci[l]) return;
+      addLabel(text, '#' + ORB_COL[l].toString(16).padStart(6, '0'), v => {
+        if (!L.cloud || S.hiddenShells.has(ci[l].n)) return null;
+        v.set(dir[0] * ci[l].R, dir[1] * ci[l].R, dir[2] * ci[l].R);
+        return cloudRoot.localToWorld(v);
+      }, dir[0] < 0 ? 'flip' : '');
+    };
+    orbLabel(0, `s orbital<em>sphere · ${ci[0] ? ci[0].n : ''}s</em>`, [-0.5, -0.62, 0.6]);
+    orbLabel(1, `p orbital<em>dumbbell · ${ci[1] ? ci[1].n : ''}p</em>`, [0.95, 0, 0]);
+    orbLabel(2, `d orbital<em>cloverleaf · ${ci[2] ? ci[2].n : ''}d</em>`, [0.55, 0.55, 0]);
+    orbLabel(3, `f orbital<em>${ci[3] ? ci[3].n : ''}f</em>`, [-0.3, 0.75, 0.3]);
+  }
+
+  function updateLabels() {
+    if (labelsEl.hidden) return;
+    const w = stage.clientWidth, h = stage.clientHeight;
+    for (const L of labels) {
+      const p = L.getPos(tv);
+      if (!p) { if (L.shown) { L.el.style.display = 'none'; L.shown = false; } continue; }
+      p.project(camera);
+      if (p.z > 1 || p.z < -1 || Math.abs(p.x) > 1.2 || Math.abs(p.y) > 1.2) { if (L.shown) { L.el.style.display = 'none'; L.shown = false; } continue; }
+      const x = (p.x * 0.5 + 0.5) * w, y = (-p.y * 0.5 + 0.5) * h;
+      if (!L.shown) { L.el.style.display = ''; L.shown = true; }
+      L.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+      if (!L.el.classList.contains('sym')) L.el.classList.toggle('flip', L.el.dataset.flip === '1' ? x > w * 0.3 : x > w * 0.66);
+    }
+  }
+
+  /* ================= CAMERA ================= */
+  let fit = null;
+  function distFor(radius) {
+    const vf = camera.fov * Math.PI / 180;
+    const hf = 2 * Math.atan(Math.tan(vf / 2) * camera.aspect);
+    return radius / Math.sin(Math.min(vf, hf) / 2) * 1.04;
+  }
+  function fitCamera(dist, dir) { fit = { dist: Math.max(0.03, dist), dir: dir ? dir.clone().normalize() : null }; }
+  controls.addEventListener('start', () => { fit = null; });
+  function stepCamera() {
+    if (!fit) return;
+    controls.target.lerp(new THREE.Vector3(0, 0, 0), 0.12);
+    const off = camera.position.clone().sub(controls.target);
+    const d = off.length();
+    let dir = off.normalize();
+    if (fit.dir) dir = dir.lerp(fit.dir, 0.1).normalize();
+    // move in log space so huge zooms feel smooth
+    const nd = Math.exp(Math.log(d) + (Math.log(fit.dist) - Math.log(d)) * 0.1);
+    camera.position.copy(controls.target).addScaledVector(dir, nd);
+    if (Math.abs(Math.log(nd / fit.dist)) < 0.004 && (!fit.dir || dir.distanceTo(fit.dir) < 0.003)) fit = null;
+  }
+  function fitAtom(dir) {
+    if (!A) return;
+    const r = (A.shells.length ? A.outerR : A.R) + 0.7;
+    fitCamera(distFor(r), dir);
+  }
+
+  /* ================= REBUILD + UI SYNC ================= */
+  function rebuild(opts = {}) {
+    const prevR = A ? A.outerR : 0;
+    buildAtom();
+    applyLayers();
+    buildAtomLabels();
+    renderShellChips();
+    renderTile();
+    renderAtomNotes();
+    syncControls();
+    const big = ['pick', 'common', 'start'].includes(S.lastAction) || Math.abs(A.outerR - prevR) > 0.6;
+    if (opts.fit !== false && big) fitAtom();
+  }
+
+  function selectElement(Z, action = 'pick') {
+    S.Z = Z; S.N = EL[Z - 1].A - Z; S.E = Z; S.lastAction = action; S.part = null;
+    S.hiddenShells.clear();
+    rebuild();
+  }
+
+  function changeCount(k, d) {
+    if (k === 'p') {
+      const nz = clamp(S.Z + d, 1, 118); if (nz === S.Z) return false;
+      S.Z = nz; S.lastAction = d > 0 ? 'p+' : 'p-';
+      if (S.E > S.Z + 3) S.E = S.Z + 3;
+    } else if (k === 'n') {
+      const nn = clamp(S.N + d, 0, 190); if (nn === S.N) return false;
+      S.N = nn; S.lastAction = d > 0 ? 'n+' : 'n-';
+    } else {
+      const ne = clamp(S.E + d, 0, S.Z + 3); if (ne === S.E) { S.lastAction = d > 0 ? 'e-max' : 'e-min'; renderAtomNotes(); return false; }
+      S.E = ne; S.lastAction = d > 0 ? 'e+' : 'e-';
+    }
+    rebuild();
+    return true;
+  }
+
+  function renderTile() {
+    const e = EL[S.Z - 1], q = S.Z - S.E;
+    const cat = CATS[category(S.Z)];
+    $('#tile').style.setProperty('--cat', cat.color);
+    $('#tileZ').textContent = S.Z;
+    $('#tileA').textContent = 'A = ' + (S.Z + S.N);
+    $('#tileS').innerHTML = e.sym + (q ? `<sup>${chargeText(q)}</sup>` : '');
+    $('#tileName').textContent = e.name;
+    $('#tileIso').textContent = `${e.name}-${S.Z + S.N}`;
+    $('#pickSym').textContent = e.sym; $('#pickSym').style.setProperty('--cat', cat.color);
+    $('#pickName').textContent = e.name;
+    $$('#quick button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.z === S.Z)));
+  }
+
+  function renderShellChips() {
+    const wrap = $('#shellChips');
+    wrap.innerHTML = '';
+    if (!A || !A.shells.length) { wrap.innerHTML = '<span class="muted">No electrons, so no shells.</span>'; return; }
+    A.shells.forEach((sh, i) => {
+      const b = document.createElement('button');
+      b.textContent = `${sh.n} ${SHELL_LETTERS[i]} · ${sh.count}`;
+      b.className = sh.outer ? 'outer' : '';
+      b.setAttribute('aria-pressed', String(!S.hiddenShells.has(sh.n)));
+      b.title = `Shell ${sh.n} (${SHELL_LETTERS[i]}) has ${sh.count} electron${sh.count === 1 ? '' : 's'}`;
+      b.onclick = () => {
+        if (S.hiddenShells.has(sh.n)) S.hiddenShells.delete(sh.n); else S.hiddenShells.add(sh.n);
+        b.setAttribute('aria-pressed', String(!S.hiddenShells.has(sh.n)));
+        applyLayers();
+      };
+      wrap.appendChild(b);
+    });
+  }
+
+  function syncControls() {
+    $('#cnt-p').textContent = S.Z; $('#cnt-n').textContent = S.N; $('#cnt-e').textContent = S.E;
+    for (const k in S.layers) { const el = $('#L-' + k); if (el) el.checked = S.layers[k]; }
+    $$('[data-model]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.model === S.model)));
+    $('#O-flat').checked = S.flat; $('#O-scale').checked = S.trueScale;
+    $('#O-rotate').checked = S.autoRotate; $('#M-rotate').checked = S.molRotate;
+    $('#speed').value = S.speed;
+    $$('[data-style]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.style === S.molStyle)));
+    $('#M-labels').checked = S.molLabels; $('#M-electrons').checked = S.molElectrons; $('#M-open').checked = S.molOpen;
+  }
+
+  function renderLegend() {
+    const lg = $('#legend');
+    const item = (sw, text) => `<span><i class="sw ${sw}"></i>${text}</span>`;
+    if (S.mode === 'atom') {
+      const L = S.layers, out = [];
+      if (L.protons) out.push(item('p', 'Proton (+)'));
+      if (L.neutrons) out.push(item('n', 'Neutron (0)'));
+      if (L.quarks) out.push(item('u', 'Up quark'), item('d', 'Down quark'));
+      if (L.electrons) out.push(item('e', 'Electron (−)'), item('v', 'Valence electron'));
+      if (L.cloud) {
+        const ls = A ? Object.keys(A.cloudInfo).map(Number).sort() : [];
+        ls.forEach(l => out.push(`<span><i class="sw" style="background:#${ORB_COL[l].toString(16).padStart(6, '0')}"></i>${'spdf'[l]} orbitals</span>`));
+      }
+      out.push('<span>Not to scale</span>');
+      lg.innerHTML = out.join('');
+    } else {
+      const els = [...new Set(mol.atoms.map(a => a.el))];
+      lg.innerHTML = els.map(el => `<span><i class="sw" style="background:${BUILDER[el].color}"></i>${EL_NAME(el)}</span>`).join('') +
+        (S.molElectrons && S.molStyle === 'ball' ? item('e', 'Electron') : '') +
+        (S.molOpen ? item('v', 'Room for a bond') : '') + '<span>CPK colors</span>';
+    }
+  }
+
+  /* ================= ATOM NOTES ================= */
+  function explainAction() {
+    const e = EL[S.Z - 1], q = S.Z - S.E, A_ = S.Z + S.N;
+    const ionNote = q === 0 ? '' : ` It has ${S.E} electrons and ${S.Z} protons, so it carries a ${q > 0 ? '+' : '−'}${Math.abs(q)} charge. Press "Make it neutral" to balance it.`;
+    switch (S.lastAction) {
+      case 'start':
+      case 'pick':
+        return `<b class="t">${e.name.toUpperCase()}</b>${e.name} has ${S.Z} proton${S.Z > 1 ? 's' : ''}, so its atomic number is ${S.Z}. Every ${e.name.toLowerCase()} atom in the universe has exactly ${S.Z}. Try adding or removing particles on the left to see what changes.`;
+      case 'p+':
+        return `<b class="t">YOU ADDED A PROTON</b>Now there are ${S.Z} protons, so this is <b>${e.name}</b>! The number of protons decides the element. Inside stars, nuclei smash together and gain protons, which is how heavier elements were made.${ionNote}`;
+      case 'p-':
+        return `<b class="t">YOU REMOVED A PROTON</b>With ${S.Z} proton${S.Z > 1 ? 's' : ''}, this is now <b>${e.name}</b>. Some kinds of radioactive decay change the number of protons too, turning one element into another.${ionNote}`;
+      case 'n+':
+      case 'n-': {
+        const st = stability(S.Z, S.N);
+        return `<b class="t">YOU ${S.lastAction === 'n+' ? 'ADDED' : 'REMOVED'} A NEUTRON</b>This is now <b>${e.name}-${A_}</b>. It is still ${e.name.toLowerCase()} and reacts the same way, it's just ${S.lastAction === 'n+' ? 'heavier' : 'lighter'}. Versions of an element with different neutron counts are called isotopes. ${st.stable ? 'This one holds together.' : 'This one is unstable, so it would eventually decay (it is radioactive).'}`;
+      }
+      case 'e+':
+        if (q === 0) return `<b class="t">BALANCED AGAIN</b>Electrons and protons match again, so the atom is neutral.`;
+        if (q > 0) return `<b class="t">YOU ADDED AN ELECTRON</b>There are still more protons (+) than electrons (−), so it is still a positive ion, now with a ${chargeWord(q)} charge.`;
+        return `<b class="t">YOU ADDED AN ELECTRON</b>Now there are more electrons (−) than protons (+), so the atom has a ${chargeWord(q)} charge. An atom with a charge is called an ion, and a negative ion is called an <b>anion</b>. Nonmetals like oxygen and chlorine gain electrons like this.`;
+      case 'e-':
+        if (S.E === 0) return `<b class="t">NO ELECTRONS LEFT</b>This is a bare nucleus with a +${S.Z} charge. Atoms only lose all their electrons in extremely hot places, like the inside of the Sun.`;
+        if (q === 0) return `<b class="t">BALANCED AGAIN</b>Electrons and protons match again, so the atom is neutral.`;
+        if (q < 0) return `<b class="t">YOU REMOVED AN ELECTRON</b>There are still more electrons than protons, so it is still a negative ion, now with a ${chargeWord(q)} charge.`;
+        return `<b class="t">YOU REMOVED AN ELECTRON</b>Now there are more protons (+) than electrons (−), so the atom has a ${chargeWord(q)} charge. An atom with a charge is called an ion, and a positive ion is called a <b>cation</b>. Metals lose electrons like this when they react.`;
+      case 'e-max':
+        return `<b class="t">THAT'S ENOUGH ELECTRONS</b>Real atoms rarely hold more than 3 extra electrons. The extra negative charge pushes new electrons away.`;
+      case 'e-min':
+        return `<b class="t">NO ELECTRONS TO REMOVE</b>There are no electrons left, just a bare nucleus.`;
+      case 'neutral':
+        return `<b class="t">BALANCED</b>${S.E} electrons and ${S.Z} protons: the charges cancel out, so the atom is neutral.`;
+      case 'common':
+        return `<b class="t">MOST COMMON ISOTOPE</b>${e.name}-${A_} is the ${S.Z >= 104 ? 'longest-lasting version scientists have made' : S.Z === 43 || S.Z === 61 || S.Z >= 84 ? 'longest-lasting version' : 'version you would usually find in nature'}: ${S.Z} protons and ${S.N} neutrons.`;
+      case 'tour':
+        return '';
+      default:
+        return '';
+    }
+  }
+
+  function chargeWord(q) { return (q > 0 ? '+' : '−') + Math.abs(q); }
+  function bigWords(n) {
+    if (n >= 1e12) return fmt(n / 1e12, n >= 1e13 ? 0 : 1) + ' trillion';
+    if (n >= 1e9) return fmt(n / 1e9, n >= 1e10 ? 0 : 1) + ' billion';
+    if (n >= 1e6) return fmt(n / 1e6, 0) + ' million';
+    return fmt(n, 0);
+  }
+
+  function bondingBehavior(Z, cfg) {
+    const v = cfg.valence, cat = category(Z), full = (cfg.shells.length === 1 && v === 2) || (v === 8 && cfg.shells.length > 1);
+    if (S.E !== S.Z) return `As an ion, it now has ${v} electron${v === 1 ? '' : 's'} in its outer shell.${full ? ' That shell is full, which is exactly why atoms like to form this ion.' : ''}`;
+    if (cat === 'noble' || full) return 'Its outer shell is already full, so it doesn\'t need to bond with anything.';
+    if (cat === 'transition' || cat === 'lanthanide' || cat === 'actinide') return `Like other ${CATS[cat].name.toLowerCase()}s, it can lose different numbers of electrons from its outer and inner shells. That is why, for example, iron can form Fe²⁺ or Fe³⁺ ions.`;
+    if (Z === 1) return 'Hydrogen has 1 electron and wants 2, so it usually shares one pair of electrons: one bond.';
+    const sy = EL[Z - 1].sym;
+    if (cat === 'metalloid') return `As a metalloid it usually <b>shares</b> its ${v} outer electrons in bonds instead of giving them away completely.`;
+    if (v <= 3) return `It tends to <b>give away</b> its ${v} outer electron${v > 1 ? 's' : ''} to reveal the full shell underneath, becoming a ${sy}${chargeText(v)} ion.`;
+    if (v === 4) return 'With 4 outer electrons it is halfway to 8, so it usually <b>shares</b> electrons and makes 4 bonds.';
+    return `It needs ${8 - v} more electron${8 - v > 1 ? 's' : ''} to fill its outer shell, so it tends to <b>grab or share</b> ${8 - v} (making ${8 - v} bond${8 - v > 1 ? 's' : ''}, or a ${sy}${chargeText(-(8 - v))} ion).`;
+  }
+
+  function stabilityHtml(Z, N) {
+    const st = stability(Z, N), e = EL[Z - 1];
+    const label = st.stable ? (st.sure ? 'Stable' : 'Probably stable') : (st.sure ? 'Radioactive' : 'Probably radioactive');
+    let why = '';
+    if (st.reason === 'noNeutrons') why = 'With no neutrons, the protons would instantly push each other apart. Only hydrogen can manage without any neutrons.';
+    else if (st.reason === 'heavy') why = Z >= 104 ? 'Superheavy elements are made in particle accelerators a few atoms at a time, and they fall apart in seconds or less.' : 'Every element heavier than lead has no truly stable isotopes. The nucleus is so big that the strong force can\'t hold it together forever.';
+    else if (st.reason === 'noStable') why = `${e.name} is one of only two elements lighter than lead with no stable isotopes at all.`;
+    else if (!st.stable) {
+      const best = STABLE_LIST(Z);
+      why = N > best ? 'Too many neutrons for this many protons. The nucleus will turn a neutron into a proton (beta decay) to become more balanced.' : 'Too few neutrons for this many protons. The nucleus will turn a proton into a neutron, or spit out particles, to become more balanced.';
+    } else why = st.sure ? 'This mix of protons and neutrons holds together for good.' : 'This is close to the best mix of protons and neutrons, so it probably holds together. (Our check is an estimate for this element.)';
+    const note = ISOTOPE_NOTES[Z + '-' + N];
+    return { label, cls: st.stable ? 'good' : 'warn', why, note };
+  }
+  function STABLE_LIST(Z) { const e = EL[Z - 1]; return Z <= 20 ? (e.A - Z) : optimalN(Z); }
+
+  function renderAtomNotes() {
+    const e = EL[S.Z - 1], catKey = category(S.Z), cat = CATS[catKey], q = S.Z - S.E, Amass = S.Z + S.N;
+    const cfg = electronConfig(S.Z, S.E), pos = tablePosition(S.Z);
+    const iso = stabilityHtml(S.Z, S.N);
+    const ion = q === 0 ? 'Neutral atom' : (q > 0 ? `Positive ion (${e.sym}${chargeText(q)})` : `Negative ion (${e.sym}${chargeText(q)})`);
+    const where = pos.fblock ? `Period ${pos.period} · ${catKey === 'lanthanide' ? 'lanthanide' : 'actinide'} row` : `Group ${pos.group} · Period ${pos.period}`;
+    const massKg = Amass * 1.66054e-27;
+    const perGram = 6.02214e23 / e.weight;
+    const parts = S.Z * M_PARTS.p + S.N * M_PARTS.n + S.E * M_PARTS.e;
+    const B = bindingEnergyMeV(S.Z, S.N);
+    const real = parts - B / 931.494;
+    const action = explainAction();
+    const fact = FACTS[e.sym];
+    const shellsHtml = cfg.shells.length ? cfg.shells.map((c, i) => `<span class="${i === cfg.shells.length - 1 ? 'outer' : ''}"><small>${SHELL_LETTERS[i]}</small>${c}</span>`).join('') : '<span>none</span>';
+    const p = S.part;
+    let partHtml = '<p class="muted">Click any particle, shell or cloud in the 3D view to learn what it is.</p>';
+    if (p) {
+      let info = PARTS[p.kind];
+      if (p.kind === 'shell') {
+        const sh = A && A.shells.find(s => s.n === p.n);
+        const cnt = sh ? sh.count : 0, cap = 2 * p.n * p.n;
+        info = {
+          title: `Shell ${p.n} (the ${SHELL_LETTERS[p.n - 1]} shell)`, sw: 'ring',
+          facts: [['Electrons here', `${cnt}`], ['Can hold up to', `${cap} (2 × ${p.n}²)`], ['Energy', p.n === 1 ? 'lowest' : `higher than shell ${p.n - 1}`]],
+          text: `Shells are energy levels. Electrons in shells farther from the nucleus have more energy. ${sh && sh.outer ? 'This is the outer shell, so its electrons are the valence electrons that make bonds. ' : ''}When an electron drops from a higher shell to a lower one, it gives off a flash of light of one exact color. That is how fireworks and neon signs get their colors, and how astronomers know what stars are made of.`
+        };
+      }
+      if (info) partHtml = `<div class="part"><h3><span class="sw ${info.sw}"></span>${info.title}</h3><dl class="facts">${info.facts.map(([k, v]) => `<dt>${k}</dt><dd class="plain">${v}</dd>`).join('')}</dl><p>${info.text}</p></div>`;
+    }
+
+    $('#notesAtom').innerHTML = `
+      <div class="block">
+        <div class="card-head" style="--cat:${cat.color}">
+          <div class="big">${e.sym}</div>
+          <div>
+            <h2>${e.name}${q ? ` ion` : ''}</h2>
+            <div class="sub">${e.name}-${Amass} · ${e.sym}${chargeText(q)} · Z = ${S.Z}</div>
+            <div class="chips">
+              <span class="chip cat" style="--cat:${cat.color}">${cat.name}</span>
+              <span class="chip">${stateAtRoomTemp(S.Z)} at room temp</span>
+              <span class="chip">${where}</span>
+            </div>
+          </div>
+        </div>
+        <p class="lede">${cat.blurb}</p>
+      </div>
+      ${action ? `<div class="block"><div class="callout">${action}</div></div>` : ''}
+      <div class="block">
+        <h2>Inside this atom</h2>
+        <div class="grid3">
+          <div class="stat"><div class="k"><span class="sw p"></span>Protons</div><div class="v">${S.Z}</div></div>
+          <div class="stat"><div class="k"><span class="sw n"></span>Neutrons</div><div class="v">${S.N}</div></div>
+          <div class="stat"><div class="k"><span class="sw e"></span>Electrons</div><div class="v">${S.E}</div></div>
+        </div>
+        <dl class="facts">
+          <dt>Mass number</dt><dd>${Amass} <span style="color:var(--dim)">(protons + neutrons)</span></dd>
+          <dt>Charge</dt><dd>${q === 0 ? '0' : (q > 0 ? '+' : '−') + Math.abs(q)} <span style="color:var(--dim)">(${ion.toLowerCase()})</span></dd>
+          <dt>Isotope</dt><dd>${e.name}-${Amass} <span class="chip ${iso.cls}" style="margin-left:4px">${iso.label}</span></dd>
+        </dl>
+        <p class="muted">${iso.why}</p>
+        ${iso.note ? `<div class="callout"><b class="t">ABOUT ${e.name.toUpperCase()}-${Amass}</b>${iso.note}</div>` : ''}
+      </div>
+      <div class="block">
+        <h2>Where the electrons are</h2>
+        <div class="shellbar" aria-label="Electrons in each shell">${shellsHtml}</div>
+        <dl class="facts">
+          <dt>Configuration</dt><dd>${configString(S.Z, S.E)}</dd>
+          <dt>Outer shell</dt><dd>${cfg.valence} electron${cfg.valence === 1 ? '' : 's'}</dd>
+        </dl>
+        <p class="muted">${bondingBehavior(S.Z, cfg)}</p>
+        <p class="muted">How to read the configuration: <span style="font-family:var(--font-mono)">2p⁴</span> means 4 electrons in the "p" orbitals of shell 2. Switch to the cloud model to see what s, p, d and f orbitals look like.</p>
+      </div>
+      <div class="block" id="partBlock">
+        <h2>About the part you clicked</h2>
+        ${partHtml}
+      </div>
+      ${fact ? `<div class="block"><h2>Did you know?</h2><p class="lede">${fact}</p></div>` : ''}
+      <div class="block">
+        <h2>By the numbers</h2>
+        <dl class="facts">
+          <dt>One atom weighs</dt><dd>${sci(massKg)} kg</dd>
+          <dt>Atoms in 1 gram</dt><dd>${sci(perGram)}</dd>
+          <dt>Atomic weight</dt><dd>${e.weight} u <span style="color:var(--dim)">(average of its isotopes)</span></dd>
+        </dl>
+        ${Amass >= 4 && S.N > 0 ? `<p class="muted">The missing mass: add up the parts of ${e.name.toLowerCase()}-${Amass} and you get ${parts.toFixed(2)} u, but the real atom weighs about ${real.toFixed(2)} u. The missing ${(parts - real).toFixed(2)} u became the energy that glues the nucleus together, as Einstein's E = mc² says.</p>` : ''}
+        <p class="muted">One gram holds enough ${e.name.toLowerCase()} atoms to give every person on Earth about ${bigWords(perGram / 8.2e9)} of them.</p>
+      </div>
+      <div class="block">
+        <h2>Parts of every atom</h2>
+        <ul class="gloss">
+          <li><span class="sw p"></span><span><b>Protons</b> sit in the nucleus and are positive. Their number is the atomic number, which decides the element.</span></li>
+          <li><span class="sw n"></span><span><b>Neutrons</b> sit in the nucleus too, with no charge. They help hold the nucleus together. Changing them makes isotopes.</span></li>
+          <li><span class="sw e"></span><span><b>Electrons</b> are negative and about 1,836 times lighter than a proton. In a neutral atom there is one electron for every proton.</span></li>
+          <li><span class="sw ring"></span><span><b>Shells</b> are energy levels. They hold 2, 8, 18 and 32 electrons at most (2n²).</span></li>
+          <li><span class="sw v"></span><span><b>Valence electrons</b> live in the outer shell and make all the bonds.</span></li>
+          <li><span class="sw cloud"></span><span><b>Orbitals</b> are the cloud-shaped regions where electrons are likely to be. The shells model is a simpler picture of the same idea.</span></li>
+          <li><span class="sw u"></span><span><b>Quarks</b> make up protons and neutrons, 3 in each. <b>Gluons</b> carry the strong force that holds them together.</span></li>
+          <li><span class="sw lbl"></span><span><b>Empty space</b> is most of an atom. Squeeze out the empty space from every atom of every person on Earth and all 8 billion people would fit in a sugar cube.</span></li>
+        </ul>
+      </div>`;
+  }
+  const M_PARTS = { p: 1.007276, n: 1.008665, e: 0.000549 };
+
+  /* ================= MOLECULE VIEW ================= */
+  let MV = null; // meshes for the molecule
+  let molDirty = true;
+  const Y = new THREE.Vector3(0, 1, 0);
+  const va = new THREE.Vector3(), vb = new THREE.Vector3(), vd = new THREE.Vector3(), vp = new THREE.Vector3(), vm = new THREE.Vector3(), vview = new THREE.Vector3();
+
+  function rebuildMolView() {
+    clearGroup(molRoot);
+    clearLabels();
+    MV = { atoms: new Map(), bonds: [], lp: [], open: new Map(), select: null };
+    const fill = S.molStyle === 'fill';
+    for (const a of mol.atoms) {
+      const r = BUILDER[a.el].r * (fill ? 1.75 : 0.62);
+      const mesh = new THREE.Mesh(G.ball, matFor(a.el));
+      mesh.scale.setScalar(r);
+      mesh.userData = { kind: 'atom', id: a.id };
+      molRoot.add(mesh);
+      const glow = new THREE.Sprite(M.openGlow); glow.scale.setScalar(r * 4.2); glow.visible = false; molRoot.add(glow);
+      MV.atoms.set(a.id, { mesh, r, glow });
+      MV.open.set(a.id, glow);
+      const info = atomElectrons(mol, a);
+      const label = a.el + chargeText(info.charge);
+      const L = addLabel(label, null, v => (S.molLabels ? v.fromArray(a.pos) : null), 'sym' + (S.selected === a.id ? ' sel' : ''));
+      L.atomId = a.id;
+    }
+    const sel = mol.atoms.find(a => a.id === S.selected);
+    if (sel) {
+      const s = new THREE.Mesh(G.ball, M.select);
+      MV.select = s; molRoot.add(s);
+    }
+    let firstShared = null, firstLp = null, firstIonic = null;
+    for (const b of mol.bonds) {
+      const A1 = atomById(mol, b.a), B1 = atomById(mol, b.b);
+      const entry = { b, A: A1, B: B1, cyl: [], dashes: [], dots: [], movers: [] };
+      if (b.ionic) {
+        for (let k = 0; k < 9; k++) { const d = new THREE.Mesh(G.dash, M.ionic); molRoot.add(d); entry.dashes.push(d); }
+        for (let k = 0; k < b.order; k++) { const d = new THREE.Mesh(G.dot, M.electron); molRoot.add(d); entry.movers.push(d); }
+        if (!firstIonic) firstIonic = entry;
+      } else {
+        for (let k = 0; k < b.order; k++) {
+          const c1 = new THREE.Mesh(G.bond, matFor(A1.el)), c2 = new THREE.Mesh(G.bond, matFor(B1.el));
+          molRoot.add(c1, c2); entry.cyl.push([c1, c2]);
+        }
+        for (let k = 0; k < b.order * 2; k++) { const d = new THREE.Mesh(G.dot, M.electron); molRoot.add(d); entry.dots.push(d); }
+        if (!firstShared) firstShared = entry;
+      }
+      MV.bonds.push(entry);
+    }
+    for (const a of mol.atoms) {
+      a.lps.forEach((lp, i) => {
+        const d1 = new THREE.Mesh(G.dot, M.electron), d2 = new THREE.Mesh(G.dot, M.electron);
+        molRoot.add(d1, d2);
+        const e = { a, lp, d1, d2 };
+        MV.lp.push(e);
+        if (!firstLp) firstLp = e;
+      });
+    }
+    const showDots = () => S.molLabels && S.molElectrons && S.molStyle === 'ball';
+    if (firstShared) {
+      const fs = firstShared;
+      addLabel(fs.b.order === 1 ? 'Shared pair<em>covalent bond</em>' : fs.b.order === 2 ? 'Two shared pairs<em>double bond</em>' : 'Three shared pairs<em>triple bond</em>', '#46c8ff', v => {
+        if (!showDots()) return null;
+        return v.fromArray(fs.A.pos).add(vb.fromArray(fs.B.pos)).multiplyScalar(0.5);
+      });
+    }
+    if (firstLp) {
+      const fl = firstLp;
+      addLabel('Lone pair<em>not shared</em>', '#46c8ff', v => (showDots() ? v.fromArray(fl.lp.pos) : null), 'flip');
+    }
+    if (firstIonic) {
+      const fi = firstIonic;
+      addLabel('Ionic bond<em>electron handed over</em>', '#ffb547', v => {
+        if (!S.molLabels || S.molStyle !== 'ball') return null;
+        return v.fromArray(fi.A.pos).add(vb.fromArray(fi.B.pos)).multiplyScalar(0.5);
+      });
+    }
+    molDirty = false;
+    renderLegend();
+  }
+
+  function placeCyl(mesh, p1, p2, radius) {
+    vd.subVectors(p2, p1);
+    const len = vd.length();
+    mesh.position.addVectors(p1, p2).multiplyScalar(0.5);
+    mesh.scale.set(radius, len, radius);
+    if (len > 1e-6) mesh.quaternion.setFromUnitVectors(Y, vd.divideScalar(len));
+  }
+
+  function updateMolView(t) {
+    if (!MV) return;
+    const fill = S.molStyle === 'fill';
+    camera.getWorldDirection(vview);
+    for (const a of mol.atoms) {
+      const m = MV.atoms.get(a.id); if (!m) continue;
+      m.mesh.position.fromArray(a.pos);
+      const free = freeSlots(mol, a.id) > 0 && mol.atoms.length > 0;
+      m.glow.visible = S.molOpen && free;
+      if (m.glow.visible) { m.glow.position.fromArray(a.pos); const s = m.r * (3.4 + 0.6 * Math.sin(t * 3)); m.glow.scale.set(s, s, 1); }
+      if (MV.select && a.id === S.selected) { MV.select.position.fromArray(a.pos); MV.select.scale.setScalar(m.r * 1.35 + 0.08); }
+    }
+    const showE = S.molElectrons && !fill;
+    for (const e of MV.bonds) {
+      va.fromArray(e.A.pos); vb.fromArray(e.B.pos);
+      vd.subVectors(vb, va); const len = vd.length() || 1e-6; vd.divideScalar(len);
+      vp.crossVectors(vd, vview); if (vp.lengthSq() < 1e-4) vp.crossVectors(vd, new THREE.Vector3(1, 0, 0)); vp.normalize();
+      vm.addVectors(va, vb).multiplyScalar(0.5);
+      if (e.b.ionic) {
+        const rA = MV.atoms.get(e.A.id).r, rB = MV.atoms.get(e.B.id).r;
+        e.dashes.forEach((d, k) => {
+          d.visible = !fill;
+          const u = (k + 1) / (e.dashes.length + 1);
+          d.position.copy(va).addScaledVector(vd, rA + (len - rA - rB) * u);
+        });
+        // electron hops from the metal to the nonmetal
+        const metalFirst = BUILDER[e.A.el].metal;
+        e.movers.forEach((d, k) => {
+          d.visible = showE;
+          let u = ((t * 0.45 + k / e.movers.length) % 1);
+          u = metalFirst ? u : 1 - u;
+          d.position.copy(va).addScaledVector(vd, len * u);
+        });
+      } else {
+        const off = e.b.order === 1 ? [0] : e.b.order === 2 ? [-0.11, 0.11] : [-0.15, 0, 0.15];
+        e.cyl.forEach(([c1, c2], k) => {
+          c1.visible = c2.visible = !fill;
+          const o1 = va.clone().addScaledVector(vp, off[k]), o2 = vb.clone().addScaledVector(vp, off[k]);
+          const mid = vm.clone().addScaledVector(vp, off[k]);
+          const rad = e.b.order === 1 ? 0.075 : 0.055;
+          placeCyl(c1, o1, mid, rad); placeCyl(c2, mid, o2, rad);
+        });
+        const vq = new THREE.Vector3().crossVectors(vd, vp).normalize();
+        const n = e.dots.length, rr = e.b.order === 1 ? 0.17 : 0.24;
+        e.dots.forEach((d, k) => {
+          d.visible = showE;
+          const ang = t * 1.6 + k * TAU / n;
+          d.position.copy(vm).addScaledVector(vp, Math.cos(ang) * rr).addScaledVector(vq, Math.sin(ang) * rr);
+        });
+      }
+    }
+    for (const e of MV.lp) {
+      const c = vm.fromArray(e.a.pos), p = va.fromArray(e.lp.pos);
+      vd.subVectors(p, c).normalize();
+      vp.crossVectors(vd, vview); if (vp.lengthSq() < 1e-4) vp.set(1, 0, 0); vp.normalize();
+      e.d1.visible = e.d2.visible = showE;
+      e.d1.position.copy(p).addScaledVector(vp, 0.085);
+      e.d2.position.copy(p).addScaledVector(vp, -0.085);
+    }
+    for (const L of labels) if (L.atomId != null) L.el.classList.toggle('sel', L.atomId === S.selected);
+  }
+
+  function molRadius() {
+    let r = 0;
+    for (const a of mol.atoms) r = Math.max(r, Math.hypot(a.pos[0], a.pos[1], a.pos[2]) + BUILDER[a.el].r * 1.8);
+    return Math.max(r, 1.6);
+  }
+
+  function settle(steps) { for (let i = 0; i < steps; i++) layoutStep(mol, 0.035); }
+
+  function molChanged(msg, bad) {
+    if (msg !== undefined) { S.molMsg = msg; S.molMsgBad = !!bad; }
+    if (S.selected != null && !atomById(mol, S.selected)) S.selected = null;
+    settle(900);
+    rebuildMolView();
+    renderMolNotes();
+    renderMolControls();
+    fitCamera(distFor(molRadius() + 0.6));
+  }
+
+  function renderMolControls() {
+    const m = $('#molMsg');
+    m.innerHTML = S.molMsg || 'Pick a molecule above, or add atoms one at a time.';
+    m.classList.toggle('bad', !!S.molMsgBad);
+    $('#removeSel').disabled = S.selected == null;
+  }
+
+  function renderMolNotes() {
+    const box = $('#notesMol');
+    if (!mol.atoms.length) {
+      box.innerHTML = `<div class="block"><h2>An empty lab bench</h2><p class="lede">Pick a famous molecule on the left, or add atoms one at a time. Atoms bond until their outer shells are full.</p></div>${bondGlossary()}`;
+      return;
+    }
+    const comps = components(mol);
+    const forms = comps.map(ids => formulaOf(mol, ids));
+    const openAtoms = mol.atoms.filter(a => freeSlots(mol, a.id) > 0);
+    const openSpots = openAtoms.reduce((t, a) => t + freeSlots(mol, a.id), 0);
+    const kinds = { 1: 0, 2: 0, 3: 0, ionic: 0 };
+    mol.bonds.forEach(b => { if (b.ionic) kinds.ionic++; else kinds[b.order]++; });
+    let mass = 0, prot = 0, neut = 0, elec = 0;
+    for (const a of mol.atoms) { const e = BY_SYM[a.el]; mass += e.weight; prot += e.Z; neut += e.A - e.Z; elec += e.Z; }
+    let head;
+    if (mol.atoms.length === 1) {
+      const only = mol.atoms[0];
+      head = `<div class="formula">${only.el}</div><h2 style="font-size:20px">A single ${EL_NAME(only.el).toLowerCase()} atom</h2><p class="lede">An atom on its own has nobody to bond with. Add another atom and watch them share or swap electrons.</p>`;
+    } else if (forms.length === 1) {
+      const f = forms[0];
+      head = `<div class="formula">${prettyFormula(f.display)}</div><h2 style="font-size:20px">${f.known ? f.known.name : 'A molecule with no famous name'}</h2>${f.known ? `<p class="lede">${f.known.note}</p>` : '<p class="muted">Not one of the molecules this builder knows by name. That doesn\'t mean it can\'t exist: chemists know more than 100 million different compounds!</p>'}`;
+    } else {
+      head = `<h2 style="font-size:20px">${forms.length} separate pieces</h2><div class="formula-list">${forms.map(f => `<div>${prettyFormula(f.display)} <span style="font:400 13px var(--font-body);color:var(--dim)">${f.known ? f.known.name : ''}</span></div>`).join('')}</div><p class="muted">These pieces aren't bonded to each other. Click an atom to choose where the next atom attaches.</p>`;
+    }
+    const allIonic = mol.bonds.length && mol.bonds.every(b => b.ionic);
+    const status = openSpots === 0 && mol.atoms.length > 1
+      ? `<span class="chip good">Stable</span> <span class="muted" style="display:inline">Every atom has ${allIonic ? 'given or taken the electrons it needs' : 'a full outer shell'}.</span>`
+      : `<span class="chip amber">${openSpots} open bonding spot${openSpots === 1 ? '' : 's'}</span> <span class="muted" style="display:inline">${openAtoms.length} atom${openAtoms.length === 1 ? ' is' : 's are'} glowing because ${openAtoms.length === 1 ? 'it has' : 'they have'} room for more bonds. In real life ${openAtoms.length === 1 ? 'it' : 'they'} would grab more partners.</span>`;
+    const bondList = [];
+    if (kinds[1]) bondList.push(`${kinds[1]} single`);
+    if (kinds[2]) bondList.push(`${kinds[2]} double`);
+    if (kinds[3]) bondList.push(`${kinds[3]} triple`);
+    if (kinds.ionic) bondList.push(`${kinds.ionic} ionic`);
+
+    let selHtml = '<p class="muted">Click an atom in the 3D view to see its details, or to choose where the next atom bonds.</p>';
+    const a = mol.atoms.find(x => x.id === S.selected);
+    if (a) {
+      const B = BUILDER[a.el], info = atomElectrons(mol, a), used = B.slots - freeSlots(mol, a.id), shape = shapeAround(mol, a);
+      const e = BY_SYM[a.el];
+      selHtml = `<div class="part"><h3><span class="sw" style="background:${B.color}"></span>${e.name}${info.charge ? ' ion (' + a.el + chargeText(info.charge) + ')' : ''}</h3>
+        <dl class="facts">
+          <dt>Outer electrons</dt><dd>${B.ve}</dd>
+          <dt>${B.metal ? 'Electrons given' : 'Bonds used'}</dt><dd>${used} of ${B.slots}</dd>
+          ${!B.metal ? `<dt>Lone pairs</dt><dd>${info.lonePairs}</dd>` : ''}
+          ${shape ? `<dt>Shape here</dt><dd class="plain">${shape.name}</dd>` : ''}
+        </dl>
+        <p>${B.metal ? `${e.name} is a metal with ${B.ve} outer electron${B.ve > 1 ? 's' : ''}. It hands ${B.ve > 1 ? 'them' : 'it'} to a nonmetal and becomes a positive ion.` : `${e.name} has ${B.ve} outer electrons and needs ${a.el === 'H' ? 2 : 8} for a full shell, so it makes ${B.slots} bond${B.slots > 1 ? 's' : ''}.`} ${shape ? shape.why : ''}</p>
+        <div class="row"><button class="btn" id="viewAtomBtn">Look inside this ${e.name.toLowerCase()} atom</button></div></div>`;
+    }
+
+    box.innerHTML = `
+      <div class="block">${head}<div>${status}</div></div>
+      <div class="block">
+        <h2>What's in it</h2>
+        <div class="grid3">
+          <div class="stat"><div class="k">Atoms</div><div class="v">${mol.atoms.length}</div></div>
+          <div class="stat"><div class="k">Bonds</div><div class="v">${mol.bonds.length}</div></div>
+          <div class="stat"><div class="k">g/mol</div><div class="v">${fmt(mass, 2)}</div></div>
+        </div>
+        <dl class="facts">
+          <dt>Bond types</dt><dd class="plain">${bondList.join(', ') || 'none yet'}</dd>
+          <dt>Total protons</dt><dd>${prot}</dd>
+          <dt>Total neutrons</dt><dd>${neut}</dd>
+          <dt>Total electrons</dt><dd>${elec}</dd>
+        </dl>
+        <p class="muted">A mole is 6.022 × 10²³ of something (602 billion trillion). A mole of ${forms.length === 1 ? 'this' : 'these'} weighs ${fmt(mass, 2)} grams.</p>
+      </div>
+      <div class="block" id="selBlock"><h2>Picked atom</h2>${selHtml}</div>
+      ${bondGlossary(kinds)}`;
+    const vb2 = $('#viewAtomBtn');
+    if (vb2) vb2.onclick = () => { const Z = BY_SYM[a.el].Z; setMode('atom'); selectElement(Z); };
+  }
+
+  function bondGlossary(kinds) {
+    const k = kinds || { 1: 1, 2: 1, 3: 1, ionic: 1 };
+    const items = [];
+    if (k[1] || !kinds) items.push('<div><b>Single covalent bond:</b> two atoms share one pair of electrons (2 electrons). Drawn as one stick.</div>');
+    if (k[2] || !kinds) items.push('<div><b>Double bond:</b> two shared pairs (4 electrons). Shorter and stronger than a single bond.</div>');
+    if (k[3] || !kinds) items.push('<div><b>Triple bond:</b> three shared pairs (6 electrons). The shortest and strongest.</div>');
+    if (k.ionic || !kinds) items.push('<div><b>Ionic bond:</b> a metal hands electrons to a nonmetal. One becomes +, the other −, and opposite charges attract.</div>');
+    items.push('<div><b>Lone pair:</b> a pair of outer electrons that isn\'t shared. Lone pairs push bonds away, which is why water is bent instead of straight.</div>');
+    items.push('<div><b>The octet rule:</b> atoms bond until each has 8 electrons in its outer shell (hydrogen only needs 2).</div>');
+    return `<div class="block"><h2>How bonds work</h2><div class="bondkinds">${items.join('')}</div></div>`;
+  }
+
+  /* ================= MODE ================= */
+  function setMode(m) {
+    if (S.mode === m) return;
+    S.mode = m;
+    $('#tab-atom').setAttribute('aria-selected', String(m === 'atom'));
+    $('#tab-mol').setAttribute('aria-selected', String(m === 'mol'));
+    $('#atomControls').hidden = m !== 'atom';
+    $('#molControls').hidden = m !== 'mol';
+    $('#notesAtom').hidden = m !== 'atom';
+    $('#notesMol').hidden = m !== 'mol';
+    $('#tile').hidden = m !== 'atom';
+    atomRoot.visible = m === 'atom';
+    molRoot.visible = m === 'mol';
+    $('#scaleNote').hidden = !(m === 'atom' && S.trueScale);
+    controls.autoRotate = m === 'atom' ? S.autoRotate : S.molRotate;
+    hideTip();
+    if (m === 'mol') {
+      if (!mol.atoms.length && !molVisited) { loadPreset(mol, PRESETS[0]); S.molMsg = 'This is water: one oxygen sharing electrons with two hydrogens. Try another molecule, or add atoms.'; }
+      molVisited = true;
+      molChanged();
+    } else {
+      buildAtomLabels(); applyLayers(); fitAtom();
+    }
+    applyLayers();
+  }
+  let molVisited = false;
+
+  /* ================= PICKING ================= */
+  const raycaster = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  function pickAt(clientX, clientY) {
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    raycaster.setFromCamera(ndc, camera);
+    if (S.mode === 'atom') {
+      if (!A) return null;
+      const L = S.layers;
+      if (L.quarks && !S.trueScale) {
+        const h = raycaster.intersectObjects([A.uMesh, A.dMesh], false);
+        if (h.length) return { kind: h[0].object.userData.kind };
+      }
+      const objs = [];
+      if (!S.trueScale) { if (A.pMesh.visible) objs.push(A.pMesh); if (A.nMesh.visible) objs.push(A.nMesh); }
+      if (L.electrons) A.shells.forEach(sh => { if (sh.spin.visible) objs.push(...sh.electrons); });
+      let h = raycaster.intersectObjects(objs, false);
+      if (h.length) {
+        const k = h[0].object.userData.kind;
+        if (L.quarks && (k === 'proton' || k === 'neutron')) return { kind: 'gluon' };
+        return { kind: k, n: h[0].object.userData.n };
+      }
+      const rings = A.shells.filter(sh => sh.ring.visible || sh.spin.visible).map(sh => sh.hit);
+      h = raycaster.intersectObjects(rings, false);
+      if (h.length) return { kind: 'shell', n: h[0].object.userData.n };
+      if (L.cloud) {
+        const R = A.outerR;
+        const ray = raycaster.ray;
+        const d = ray.distanceToPoint(new THREE.Vector3(0, 0, 0));
+        if (d < R * 0.9) return { kind: 'cloud' };
+      }
+      return null;
+    }
+    if (!MV) return null;
+    const objs = [...MV.atoms.values()].map(m => m.mesh);
+    const h = raycaster.intersectObjects(objs, false);
+    if (h.length) return { kind: 'atom', id: h[0].object.userData.id };
+    return null;
+  }
+  const TIP = {
+    proton: ['Proton', 'positive charge, +1'], neutron: ['Neutron', 'no charge'], electron: ['Electron', 'negative charge, −1'],
+    valence: ['Valence electron', 'outer shell, makes bonds'], up: ['Up quark', 'charge +⅔'], down: ['Down quark', 'charge −⅓'],
+    gluon: ['Proton or neutron', 'quarks held by gluons'], cloud: ['Electron cloud', 'where electrons are likely to be']
+  };
+  const tip = $('#tip');
+  function showTip(x, y, title, sub) { tip.hidden = false; tip.innerHTML = `${title}${sub ? `<small>${sub}</small>` : ''}`; tip.style.left = x + 'px'; tip.style.top = y + 'px'; }
+  function hideTip() { tip.hidden = true; }
+
+  let hoverEvt = null, downPos = null;
+  const canvas = renderer.domElement;
+  canvas.addEventListener('pointermove', e => { hoverEvt = e; });
+  canvas.addEventListener('pointerleave', () => { hoverEvt = null; hideTip(); canvas.style.cursor = ''; });
+  canvas.addEventListener('pointerdown', e => { downPos = { x: e.clientX, y: e.clientY }; hideTip(); });
+  canvas.addEventListener('pointerup', e => {
+    if (!downPos) return;
+    const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+    downPos = null;
+    if (moved > 6) return;
+    const hit = pickAt(e.clientX, e.clientY);
+    if (S.mode === 'atom') {
+      if (!hit) return;
+      S.part = hit;
+      renderAtomNotes();
+      const pb = $('#partBlock');
+      if (pb && window.innerWidth <= 1180) pb.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+    } else {
+      S.selected = hit ? hit.id : null;
+      rebuildMolView(); renderMolNotes(); renderMolControls();
+    }
+  });
+  function processHover() {
+    if (!hoverEvt || downPos) return;
+    const e = hoverEvt; hoverEvt = null;
+    const r = stage.getBoundingClientRect();
+    const hit = pickAt(e.clientX, e.clientY);
+    if (!hit) { hideTip(); canvas.style.cursor = ''; return; }
+    canvas.style.cursor = 'pointer';
+    if (S.mode === 'atom') {
+      if (hit.kind === 'shell') {
+        const sh = A.shells.find(s => s.n === hit.n);
+        showTip(e.clientX - r.left, e.clientY - r.top, `Shell ${hit.n} (${SHELL_LETTERS[hit.n - 1]})`, `${sh ? sh.count : 0} electrons · click to learn more`);
+      } else {
+        const t = TIP[hit.kind] || [hit.kind, ''];
+        showTip(e.clientX - r.left, e.clientY - r.top, t[0], t[1] + ' · click to learn more');
+      }
+    } else {
+      const a = atomById(mol, hit.id); if (!a) return;
+      const f = freeSlots(mol, a.id), info = atomElectrons(mol, a);
+      showTip(e.clientX - r.left, e.clientY - r.top, EL_NAME(a.el) + (info.charge ? ' ion ' + a.el + chargeText(info.charge) : ''), f > 0 ? `room for ${f} more bond${f > 1 ? 's' : ''} · click to pick` : 'full · click to pick');
+    }
+  }
+
+  /* ================= CONTROLS WIRING ================= */
+  // quick picks
+  const QUICK = [1, 2, 6, 8, 11, 17, 26, 29, 79, 92, 118];
+  $('#quick').innerHTML = QUICK.map(z => `<button data-z="${z}" title="${EL[z - 1].name}" aria-pressed="false">${EL[z - 1].sym}</button>`).join('');
+  $('#quick').addEventListener('click', e => { const b = e.target.closest('button'); if (b) selectElement(+b.dataset.z); });
+
+  // steppers with press-and-hold
+  $$('.stepper button').forEach(btn => {
+    let timer = null, rep = null;
+    const stop = () => { clearTimeout(timer); clearInterval(rep); timer = rep = null; };
+    btn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      const k = btn.dataset.k, d = +btn.dataset.d;
+      changeCount(k, d);
+      timer = setTimeout(() => { rep = setInterval(() => { if (!changeCount(k, d)) stop(); }, 85); }, 420);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, stop));
+    btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); changeCount(btn.dataset.k, +btn.dataset.d); } });
+  });
+  $('#neutralBtn').onclick = () => { S.E = S.Z; S.lastAction = 'neutral'; rebuild(); };
+  $('#commonBtn').onclick = () => { S.N = EL[S.Z - 1].A - S.Z; S.lastAction = 'common'; rebuild(); };
+
+  function setModel(m) {
+    S.model = m;
+    if (m === 'cloud') { S.layers.rings = false; S.layers.electrons = false; S.layers.cloud = true; }
+    else { S.layers.rings = true; S.layers.electrons = true; S.layers.cloud = false; }
+    syncControls(); applyLayers();
+    if (m === 'cloud') { S.part = { kind: 'cloud' }; renderAtomNotes(); }
+  }
+  $$('[data-model]').forEach(b => b.addEventListener('click', () => setModel(b.dataset.model)));
+
+  Object.keys(S.layers).forEach(k => {
+    const el = $('#L-' + k); if (!el) return;
+    el.addEventListener('change', () => {
+      S.layers[k] = el.checked;
+      if (k === 'quarks' && el.checked) { updateQuarks(clock, true); S.part = { kind: 'up' }; renderAtomNotes(); }
+      if (k === 'cloud' || k === 'rings' || k === 'electrons') {
+        S.model = S.layers.cloud && !S.layers.rings && !S.layers.electrons ? 'cloud' : (!S.layers.cloud ? 'bohr' : S.model);
+        $$('[data-model]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.model === S.model)));
+      }
+      applyLayers();
+    });
+  });
+  $('#O-flat').addEventListener('change', e => setFlat(e.target.checked));
+  $('#O-scale').addEventListener('change', e => setTrueScale(e.target.checked));
+  $('#O-rotate').addEventListener('change', e => { S.autoRotate = e.target.checked; if (S.mode === 'atom') controls.autoRotate = S.autoRotate; });
+  $('#M-rotate').addEventListener('change', e => { S.molRotate = e.target.checked; if (S.mode === 'mol') controls.autoRotate = S.molRotate; });
+  $('#speed').addEventListener('input', e => { S.speed = +e.target.value; });
+  $('#resetView').onclick = () => { S.autoRotate = !reduceMotion; controls.autoRotate = S.autoRotate; syncControls(); fitAtom(S.flat ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 0.25, 1)); };
+
+  function setFlat(on) {
+    S.flat = on;
+    if (on) { S.autoRotate = false; controls.autoRotate = false; fitAtom(new THREE.Vector3(0, 0, 1)); }
+    syncControls();
+  }
+  function setTrueScale(on) {
+    S.trueScale = on;
+    const note = $('#scaleNote');
+    note.hidden = !on || S.mode !== 'atom';
+    if (on) {
+      const e = EL[S.Z - 1];
+      note.innerHTML = `<b>Real size.</b> The nucleus is now drawn at its true size compared with the electron shells: tens of thousands of times smaller across than the whole atom. If this atom were as big as a football stadium, its nucleus would be a pea on the 50-yard line. Everything else is empty space.`;
+    }
+    syncControls();
+  }
+
+  // tabs
+  $('#tab-atom').onclick = () => setMode('atom');
+  $('#tab-mol').onclick = () => setMode('mol');
+  $('.modes').addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { const m = S.mode === 'atom' ? 'mol' : 'atom'; setMode(m); $('#tab-' + m).focus(); }
+  });
+
+  // molecule controls
+  $('#presets').innerHTML = PRESETS.map(p => {
+    const counts = {}; p.atoms.forEach(s => { counts[s] = (counts[s] || 0) + 1; });
+    const key = hillKey(counts), known = KNOWN[key];
+    return `<button data-preset="${p.id}"><b>${prettyFormula(known ? known.formula : key)}</b><span>${p.name}</span></button>`;
+  }).join('');
+  $('#presets').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const p = PRESETS.find(x => x.id === b.dataset.preset);
+    loadPreset(mol, p); S.selected = null;
+    molChanged(`Loaded ${p.name.toLowerCase()}. Click an atom to see its details, or add more atoms.`);
+  });
+  $('#palette').innerHTML = BUILDER_ORDER.map(s => {
+    const B = BUILDER[s];
+    return `<button data-el="${s}" title="Add ${EL_NAME(s)}"><span class="ball" style="background:${B.color}">${s}</span><small>${B.metal ? `gives ${B.slots} e⁻` : `${B.slots} bond${B.slots > 1 ? 's' : ''}`}</small></button>`;
+  }).join('');
+  $('#palette').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (mol.atoms.length >= 40) { S.molMsg = 'That\'s 40 atoms, the most this bench can hold. Remove some or clear the bench.'; S.molMsgBad = true; renderMolControls(); return; }
+    const r = addAtom(mol, b.dataset.el, S.selected);
+    if (!r.ok) { S.molMsg = r.msg; S.molMsgBad = true; renderMolControls(); return; }
+    molChanged(r.msg);
+  });
+  $('#removeSel').onclick = () => {
+    if (S.selected == null) return;
+    const a = atomById(mol, S.selected);
+    removeAtom(mol, S.selected); S.selected = null;
+    molChanged(`Removed a${/^[AEIOU]/.test(EL_NAME(a.el)) ? 'n' : ''} ${EL_NAME(a.el).toLowerCase()} atom.`);
+  };
+  $('#clearMol').onclick = () => { mol.atoms = []; mol.bonds = []; mol.nextId = 1; S.selected = null; molChanged('The bench is clear. Add some atoms!'); };
+  $$('[data-style]').forEach(b => b.addEventListener('click', () => { S.molStyle = b.dataset.style; syncControls(); rebuildMolView(); }));
+  $('#M-labels').addEventListener('change', e => { S.molLabels = e.target.checked; applyLayers(); });
+  $('#M-electrons').addEventListener('change', e => { S.molElectrons = e.target.checked; renderLegend(); });
+  $('#M-open').addEventListener('change', e => { S.molOpen = e.target.checked; renderLegend(); });
+
+  /* ================= PERIODIC TABLE ================= */
+  const pt = $('#ptable'), grid = $('#ptGrid');
+  (function buildTable() {
+    const cells = [];
+    for (const e of EL) {
+      const p = tablePosition(e.Z), c = CATS[category(e.Z)].color;
+      let row, col;
+      if (p.fblock) { row = p.period === 6 ? 9 : 10; col = p.fcol + 3; } else { row = p.period; col = p.group; }
+      cells.push(`<button class="cell" data-z="${e.Z}" style="--cat:${c};grid-row:${row};grid-column:${col}" aria-label="${e.name}, ${e.Z}" title="${e.name}"><span class="n">${e.Z}</span><span class="s">${e.sym}</span><span class="nm">${e.name}</span></button>`);
+    }
+    cells.push('<div class="ph" style="grid-row:6;grid-column:3">57–71</div>', '<div class="ph" style="grid-row:7;grid-column:3">89–103</div>', '<div class="gap" style="grid-row:8"></div>');
+    grid.innerHTML = cells.join('');
+    $('#ptLegend').innerHTML = Object.values(CATS).map(c => `<span style="--cat:${c.color}"><i></i>${c.name}</span>`).join('');
+  })();
+  let ptOpener = null;
+  function openTable(opener) {
+    ptOpener = opener || document.activeElement;
+    pt.hidden = false;
+    $$('.cell', grid).forEach(c => c.classList.toggle('cur', +c.dataset.z === S.Z));
+    $('#ptSearch').value = ''; filterTable('');
+    setTimeout(() => $('#ptSearch').focus(), 20);
+  }
+  function closeTable() { pt.hidden = true; const o = ptOpener; if (o && o.focus) setTimeout(() => o.focus(), 0); }
+  function filterTable(q) {
+    q = q.trim().toLowerCase();
+    $$('.cell', grid).forEach(c => {
+      const e = EL[+c.dataset.z - 1];
+      const ok = !q || e.name.toLowerCase().includes(q) || e.sym.toLowerCase() === q || String(e.Z) === q;
+      c.classList.toggle('dim', !ok);
+    });
+  }
+  $('#elPick').onclick = e => openTable(e.currentTarget);
+  $('#tile').onclick = e => { if (S.mode === 'atom') openTable(e.currentTarget); };
+  $('#ptClose').onclick = closeTable;
+  pt.addEventListener('click', e => { if (e.target === pt) closeTable(); });
+  grid.addEventListener('click', e => { const c = e.target.closest('.cell'); if (!c) return; closeTable(); selectElement(+c.dataset.z); });
+  $('#ptSearch').addEventListener('input', e => filterTable(e.target.value));
+  $('#ptSearch').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); const first = $$('.cell', grid).find(c => !c.classList.contains('dim')); if (first) { closeTable(); selectElement(+first.dataset.z); } }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { if (!pt.hidden) closeTable(); else if (!$('#tour').hidden) closeTour(); }
+  });
+
+  /* ================= TOUR ================= */
+  function setLayers(o) { Object.assign(S.layers, o); S.model = S.layers.cloud && !S.layers.rings ? 'cloud' : 'bohr'; syncControls(); applyLayers(); }
+  const BASE_LAYERS = { protons: true, neutrons: true, quarks: false, rings: true, electrons: true, cloud: false, labels: true };
+  function tourAtom(Z, N, E) {
+    setMode('atom'); setTrueScale(false); S.flat = false; S.hiddenShells.clear();
+    S.Z = Z; S.N = N != null ? N : EL[Z - 1].A - Z; S.E = E != null ? E : Z; S.lastAction = 'tour';
+    rebuild({ fit: false });
+  }
+  const TOUR = [
+    { t: 'Everything is made of atoms', b: 'Your body contains about 7 billion billion billion atoms (7 × 10²⁷). This is a carbon atom, the atom all life on Earth is built around. Drag the view to spin it.',
+      go() { tourAtom(6); setLayers(BASE_LAYERS); fitAtom(new THREE.Vector3(0, 0.25, 1)); } },
+    { t: 'The nucleus', b: 'At the center is the nucleus: a tight ball of protons (red) and neutrons (grey-blue). It is tiny, but it holds more than 99.9% of the atom\'s mass.',
+      go() { tourAtom(6); setLayers({ ...BASE_LAYERS, rings: false, electrons: false }); fitCamera(distFor(A.R + 0.6)); } },
+    { t: 'Protons decide the element', b: 'Carbon always has 6 protons. Give it a 7th and it becomes nitrogen; take one away and it becomes boron. Try the + button next to Protons on the left.',
+      go() { tourAtom(6); setLayers(BASE_LAYERS); fitAtom(); $('#step-p').classList.add('pulse'); } },
+    { t: 'Neutrons make isotopes', b: 'This is carbon-14: still 6 protons, but 8 neutrons instead of 6. It is the same element, just heavier, and it is radioactive. Scientists use it to figure out the age of ancient bones and wood.',
+      go() { tourAtom(6, 8); setLayers(BASE_LAYERS); fitAtom(); $('#step-n').classList.add('pulse'); } },
+    { t: 'Electrons live in shells', b: 'Here is sodium in the flat textbook view. Its 11 electrons fill shells: 2 in the first, 8 in the second, and 1 lonely electron in the outer shell (amber). Outer electrons are called valence electrons.',
+      go() { tourAtom(11); setLayers(BASE_LAYERS); S.flat = true; S.autoRotate = false; controls.autoRotate = false; syncControls(); fitAtom(new THREE.Vector3(0, 0, 1)); } },
+    { t: 'Ions: losing or gaining electrons', b: 'Sodium gives that lonely electron away easily. Now it has 11 protons but only 10 electrons, so it carries a +1 charge. An atom with a charge is called an ion: this one is Na⁺.',
+      go() { tourAtom(11, null, 10); setLayers(BASE_LAYERS); S.flat = true; syncControls(); fitAtom(new THREE.Vector3(0, 0, 1)); $('#step-e').classList.add('pulse'); } },
+    { t: 'The real picture: electron clouds', b: 'Electrons don\'t actually orbit like tiny planets. Quantum physics says we can only know where an electron is likely to be, so scientists draw clouds called orbitals. Neon has a round s orbital and three dumbbell-shaped p orbitals. Pick iron to see cloverleaf d orbitals.',
+      go() { tourAtom(10); S.model = 'cloud'; setLayers({ ...BASE_LAYERS, rings: false, electrons: false, cloud: true }); S.autoRotate = !reduceMotion; controls.autoRotate = S.autoRotate; fitAtom(new THREE.Vector3(0.3, 0.45, 1)); } },
+    { t: 'Smaller still: quarks', b: 'Zoom into a helium nucleus. Each proton and neutron is made of 3 quarks, held together by gluons. A proton has 2 up quarks and 1 down quark. A neutron has 1 up and 2 down.',
+      go() { tourAtom(2); setLayers({ ...BASE_LAYERS, quarks: true, rings: false, electrons: false }); S.part = { kind: 'down' }; renderAtomNotes(); fitCamera(distFor(A.R + 0.15)); } },
+    { t: 'An atom is mostly empty space', b: 'We have been drawing the nucleus far too big so you could see it. At its real size it is tens of thousands of times smaller across than the atom. If an atom were a football stadium, the nucleus would be a pea on the 50-yard line.',
+      go() { tourAtom(6); setLayers(BASE_LAYERS); setTrueScale(true); fitAtom(); } },
+    { t: 'Atoms team up into molecules', b: 'Atoms bond by sharing electrons. In water, oxygen shares one pair of electrons with each hydrogen: those are the little dots spinning on the bonds. Oxygen\'s two lone pairs push the hydrogens down, so water is bent.',
+      go() { setTrueScale(false); setMode('mol'); loadPreset(mol, PRESETS.find(p => p.id === 'water')); S.selected = null; S.molElectrons = true; S.molLabels = true; S.molStyle = 'ball'; syncControls(); molChanged('This is water. Each dot is one electron.'); } },
+    { t: 'Give and take: ionic bonds', b: 'Metals like sodium give electrons away, and nonmetals like chlorine take them. The moving dot shows sodium\'s electron jumping over to chlorine. Now sodium is + and chlorine is −, and opposite charges stick together. That\'s table salt!',
+      go() { setMode('mol'); loadPreset(mol, PRESETS.find(p => p.id === 'salt')); S.selected = null; molChanged('Table salt: sodium hands one electron to chlorine.'); } },
+    { t: 'Your turn', b: 'The bench is clear. Try building methane (1 C and 4 H), ammonia (1 N and 3 H) or carbon dioxide (1 C and 2 O). Atoms with room for more bonds glow amber, and the notes tell you when the molecule is stable.',
+      go() { setMode('mol'); mol.atoms = []; mol.bonds = []; mol.nextId = 1; S.selected = null; molChanged('The bench is clear. Click an atom button to start building.'); } }
+  ];
+  let tourIdx = -1;
+  function showTour(i) {
+    $$('.pulse').forEach(el => el.classList.remove('pulse'));
+    tourIdx = clamp(i, 0, TOUR.length - 1);
+    const st = TOUR[tourIdx];
+    $('#tour').hidden = false;
+    $('#tourStep').textContent = `Step ${tourIdx + 1} of ${TOUR.length}`;
+    $('#tourTitle').textContent = st.t;
+    $('#tourText').textContent = st.b;
+    $('#tourDots').innerHTML = TOUR.map((_, k) => `<i class="${k === tourIdx ? 'on' : ''}"></i>`).join('');
+    $('#tourBack').disabled = tourIdx === 0;
+    $('#tourNext').textContent = tourIdx === TOUR.length - 1 ? 'Finish' : 'Next';
+    st.go();
+  }
+  function closeTour() { $('#tour').hidden = true; tourIdx = -1; $$('.pulse').forEach(el => el.classList.remove('pulse')); }
+  $('#tourBtn').onclick = () => showTour(0);
+  $('#tourNext').onclick = () => { if (tourIdx >= TOUR.length - 1) closeTour(); else showTour(tourIdx + 1); };
+  $('#tourBack').onclick = () => showTour(tourIdx - 1);
+  $('#tourClose').onclick = closeTour;
+
+  /* ================= LOOP ================= */
+  function resize() {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(stage); else window.addEventListener('resize', resize);
+  resize();
+
+  let clock = 0, last = performance.now(), nucScale = 1, eScale = 1, hoverTick = 0;
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const spd = S.speed;
+    clock += dt * spd;
+    if (S.mode === 'atom' && A) {
+      for (const sh of A.shells) {
+        sh.spin.rotation.y += dt * spd * (1.25 / Math.pow(sh.n, 0.75));
+        sh.tilt.quaternion.slerp(S.flat ? FLAT_Q : sh.bohrQ, 0.08);
+      }
+      nucleusGroup.rotation.y += dt * 0.12 * Math.min(spd, 1.5);
+      nucleusGroup.rotation.x = Math.sin(clock * 0.2) * 0.12;
+      cloudRoot.rotation.y += dt * 0.07 * spd;
+      updateQuarks(clock);
+      // true-scale tween
+      const targetN = S.trueScale ? trueScaleFactor() : 1;
+      nucScale = Math.exp(Math.log(nucScale) + (Math.log(targetN) - Math.log(nucScale)) * 0.06);
+      nucleusGroup.scale.setScalar(nucScale);
+      const targetE = S.trueScale ? 0.3 : 1;
+      eScale += (targetE - eScale) * 0.08;
+      for (const sh of A.shells) for (const e of sh.electrons) e.scale.setScalar(eScale);
+      centerMarker.visible = S.trueScale;
+      if (S.trueScale) { const s = 0.5 + 0.12 * Math.sin(now / 300); centerMarker.scale.set(s, s, 1); }
+    } else if (S.mode === 'mol') {
+      layoutStep(mol, 0.035); layoutStep(mol, 0.035);
+      updateMolView(clock);
+    }
+    stepCamera();
+    controls.update();
+    renderer.render(scene, camera);
+    updateLabels();
+    if (++hoverTick % 3 === 0) processHover();
+    requestAnimationFrame(frame);
+  }
+
+  // hot-reload friendliness
+  const snapshot = () => ({ mode: S.mode, Z: S.Z, N: S.N, E: S.E, model: S.model, layers: S.layers });
+  function start(data) {
+    if (data && data.Z) {
+      S.Z = clamp(data.Z | 0, 1, 118); S.N = clamp(data.N | 0, 0, 190); S.E = clamp(data.E | 0, 0, S.Z + 3);
+      if (data.layers) Object.assign(S.layers, data.layers);
+      if (data.model) S.model = data.model;
+    }
+    rebuild({ fit: false });
+    fitAtom();
+    camera.position.set(0, 0.26, 1).normalize().multiplyScalar(distFor(A.outerR + 0.7));
+    fit = null;
+    renderMolNotes(); renderMolControls();
+    if (data && data.mode === 'mol') setMode('mol');
+    requestAnimationFrame(frame);
+  }
+  try { window.claude && window.claude.hot && window.claude.hot.snapshot(snapshot); } catch (e) { /* no viewer */ }
+  try {
+    if (window.claude && window.claude.hot && window.claude.hot.ready) window.claude.hot.ready(start);
+    else start((window.claude && window.claude.hot && window.claude.hot.data) || {});
+  } catch (e) { start({}); }
+})();
+
+</script>
+</body>
+</html>
