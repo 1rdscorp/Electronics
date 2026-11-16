@@ -336,6 +336,7 @@ ol.steps b{color:var(--ink);font-weight:600}
               <div class="seg mini" role="group" aria-label="Output connector">
                 <button data-conn="as150" aria-pressed="true">AS150</button>
                 <button data-conn="qs8" aria-pressed="false">QS8-S</button>
+                <button data-conn="sb175" aria-pressed="false">SB175</button>
               </div>
             </div>
             <div class="cfg-sum" id="cfg-sum"></div>
@@ -348,7 +349,7 @@ ol.steps b{color:var(--ink);font-weight:600}
           </div>
           <h2>Load</h2>
           <div class="form">
-            <div class="field"><label for="in-w">Motor input power at full throttle (W)</label><input id="in-w" type="number" step="100" min="100" max="15000" value="2000"></div>
+            <div class="field"><label for="in-w">Motor input power at full throttle (W)</label><input id="in-w" type="number" step="100" min="100" max="15000" value="4000"></div>
             <div class="field"><label for="in-cut">Cell cutoff voltage (V)</label><input id="in-cut" type="number" step="0.1" min="2.5" max="3.4" value="3.0"></div>
             <div class="field"><label for="in-chg">Charger current (A)</label><input id="in-chg" type="number" step="1" min="1" max="60" value="10"></div>
           </div>
@@ -382,7 +383,7 @@ ol.steps b{color:var(--ink);font-weight:600}
             <li><span>Plug in the <b>balance connector</b> last on the BMS side (most BMS manuals ask for this order; follow yours).</span></li>
             <li><span>Connect <b>P−</b> to the output and charge negatives.</span></li>
             <li><span>With the switch OFF, connect <b>B+ → Class T fuse → switch</b>, then the output positive.</span></li>
-            <li><span>Wake the BMS, check every cell reading, then connect the controller through the anti-spark <span class="cn">AS150</span>.</span></li>
+            <li><span>Wake the BMS, check every cell reading, then connect the controller through the <span class="cn">AS150</span> output plug.</span></li>
           </ol>
         </section>
 
@@ -456,14 +457,20 @@ window.BB = window.BB || {};
       mj1:{label:'LG MJ1 · 3.5 Ah · 10 A', ah:3.5, a:10},
       generic:{label:'Generic 18650 · 3.0 Ah · 5 A', ah:3.0, a:5}}}
   };
-  const cfg = BB.cfg = {fmt:'21700', S:14, P:10, conn:'as150'};
-  // Anti-spark output connectors. Continuous ratings are the conservative published figures.
+  const cfg = BB.cfg = {fmt:'21700', S:14, P:10, conn:'sb175'};
+  // Output connectors. Continuous ratings are the conservative published figures.
   const CONNS = BB.CONNS = {
-    as150: {id:'as150', name:'AS150', long:'Amass AS150 anti-spark, 7 mm bullets', cont:70, burst:150, maxWire:1, wire:'8 AWG', volt:500,
+    as150: {id:'as150', name:'AS150', long:'Amass AS150 anti-spark, 7 mm bullets', cont:70, burst:150, maxWire:1, wire:'8 AWG', volt:500, antiSpark:true,
+      ratingText:'≈70 A continuous · 150 A burst · 500 V DC', burstNote:'150 A is the short-burst figure',
       poles:'Separate red and black bullet housings', keyNote:'The red and black AS150 bullets are separate plugs, so polarity is not keyed. Clip the housings together or mark them so they cannot go in swapped.'},
-    qs8: {id:'qs8', name:'QS8-S', long:'QS8-S anti-spark, 8 mm bullets', cont:110, burst:180, maxWire:2, wire:'6 AWG', volt:600,
-      poles:'Red and black halves locked side by side', keyNote:'The QS8-S housing is keyed red to red and black to black, so it cannot go in reversed.'}
+    qs8: {id:'qs8', name:'QS8-S', long:'QS8-S anti-spark, 8 mm bullets', cont:110, burst:180, maxWire:2, wire:'6 AWG', volt:600, antiSpark:true,
+      ratingText:'≈110 A continuous · 180 A burst · 600 V DC', burstNote:'180 A is the short-burst figure',
+      poles:'Red and black halves locked side by side', keyNote:'The QS8-S housing is keyed red to red and black to black, so it cannot go in reversed.'},
+    sb175: {id:'sb175', name:'SB175', long:'Anderson SB175, flat silver-plated wiping contacts', cont:175, burst:280, maxWire:5, wire:'1/0 AWG', volt:600, antiSpark:false, hotPlug:100, bushBelow:3,
+      ratingText:'175 A (up to 280 A with 1/0 cable) · 600 V', burstNote:'the 280 A figure applies only with 1/0 cable', upperOk:true,
+      poles:'One genderless two-pole housing per side', keyNote:'SB housings are keyed by colour and mate only one way round, so polarity cannot be reversed. Both halves must be the same colour (grey is the common one).'}
   };
+  try { const k = localStorage.getItem('bb-conn'); if (CONNS[k]) cfg.conn = k; } catch (e) {}
   const S_MIN = 4, S_MAX = 20, P_MIN = 1, P_MAX = 16;
   // Conservative ampacity for 105 °C tinned marine cable inside a closed box; r = tube radius (mm) used in 3D
   const AWG = [
@@ -492,7 +499,7 @@ window.BB = window.BB || {};
     const F = FORMATS[cfg.fmt], S = cfg.S, P = cfg.P, L = layoutOf(S,P);
     const ah = clamp(num(inp.ah.value,3), 0.5, 10);
     const a = clamp(num(inp.a.value,10), 1, 100);
-    const W = clamp(num(inp.w.value,2000), 100, 20000);
+    const W = clamp(num(inp.w.value,4000), 100, 20000);
     const cut = clamp(num(inp.cut.value,3.0), 2.5, 3.4);
     const chg = clamp(num(inp.chg.value,10), 1, 100);
     const vFull = S*4.2, vNom = S*3.6, vCut = S*cut, vRate = Math.ceil((vFull+1)/10)*10;
@@ -508,11 +515,14 @@ window.BB = window.BB || {};
     const chargeFuse = CHG_FUSE.find(f => f >= chg*1.25) || 80, chargeFuseV = Math.max(80, vRate);
     const chargeAwg = chg <= 15 ? {awg:'14 AWG', r:1.9} : chg <= 25 ? {awg:'12 AWG', r:2.4} : {awg:'10 AWG', r:3.1};
     const conn = CONNS[cfg.conn], cableIdx = AWG.indexOf(cable), fits = cableIdx <= conn.maxWire;
-    const other = conn.id === 'as150' ? CONNS.qs8 : null;
+    const better = Object.values(CONNS).find(k => k.id !== conn.id && iCut <= k.cont && cableIdx <= k.maxWire);
+    const pairText = conn.antiSpark ? 'anti-spark pair' : 'connector pair';
     let xt;
-    if (iCut <= conn.cont && fits) xt = {lvl:'ok', text:`${conn.name} anti-spark pair`, note:`${f0(iCut)} A worst case is inside its ≈${conn.cont} A continuous rating, and it takes ${cable.awg} cable (up to ${conn.wire}).`};
-    else if (iCut <= conn.burst && fits) xt = {lvl:'warn', text:`${conn.name} works, but runs warm`, note:`${f0(iCut)} A is above its ≈${conn.cont} A continuous rating (${conn.burst} A is the short-burst figure).` + (other && iCut <= other.cont ? ` The ${other.name} (≈${other.cont} A continuous) covers this load.` : ' Fine for bursts; for long full-throttle runs use a bigger connector.')};
-    else xt = {lvl:'crit', text:`Too small for this load`, note:`${f0(iCut)} A${fits ? '' : ` and ${cable.awg} cable (it takes ${conn.wire} at most)`} is past what the ${conn.name} is built for.` + (other && iCut <= other.cont && cableIdx <= other.maxWire ? ` Switch to the ${other.name}.` : ' Use an Anderson SB175-class connector or bolted lugs with an isolator.')};
+    if (iCut <= conn.cont && fits) xt = {lvl:'ok', text:`${conn.name} ${pairText}`, note:`${f0(iCut)} A worst case is inside its ${conn.antiSpark ? '≈' : ''}${conn.cont} A continuous rating, and it takes ${cable.awg} cable (up to ${conn.wire}).` + (conn.bushBelow !== undefined && cableIdx < conn.bushBelow ? ' Cable this thin needs reducing bushings in its contacts.' : '')};
+    else if (iCut <= conn.burst && fits && conn.upperOk) xt = {lvl:'ok', text:`${conn.name} ${pairText}`, note:`${f0(iCut)} A is above its ${conn.cont} A CSA figure but inside the ${conn.burst} A UL rating that applies with ${conn.wire} cable, which this load uses.`};
+    else if (iCut <= conn.burst && fits) xt = {lvl:'warn', text:`${conn.name} works, but runs warm`, note:`${f0(iCut)} A is above its ${conn.cont} A continuous rating (${conn.burstNote}).` + (better ? ` The ${better.name} (${better.cont} A continuous) covers this load.` : ' Fine for bursts; for long full-throttle runs use a bigger connector.')};
+    else xt = {lvl:'crit', text:`Too small for this load`, note:`${f0(iCut)} A${fits ? '' : ` and ${cable.awg} cable (it takes ${conn.wire} at most)`} is past what the ${conn.name} is built for.` + (better ? ` Switch to the ${better.name}.` : ' Use an Anderson SB350-class connector or bolted lugs with an isolator.')};
+    if (!conn.antiSpark) xt.note += ' It has no built-in pre-charge: plug it in with the main switch OFF, and fit a pre-charge resistor or button across the switch.';
     let strip;
     const ns = `${L.w} strip${L.w>1?'s':''}`;
     if (stripA <= 5) strip = {lvl:'ok', text:'0.15 × 8 mm pure nickel', note:`About ${f1(stripA)} A flows through each of the ${ns} that link one group to the next.`};
@@ -654,7 +664,7 @@ window.BB = window.BB || {};
   [inp.ah, inp.a].forEach(i => i.addEventListener('input', () => { inp.cell.value = 'custom'; update(); }));
   [inp.w, inp.cut, inp.chg].forEach(i => i.addEventListener('input', update));
   document.querySelectorAll('[data-fmt]').forEach(b => b.addEventListener('click', () => { if (cfg.fmt === b.dataset.fmt) return; cfg.fmt = b.dataset.fmt; fillPresets(); update(); }));
-  document.querySelectorAll('[data-conn]').forEach(b => b.addEventListener('click', () => { if (cfg.conn === b.dataset.conn) return; cfg.conn = b.dataset.conn; update(); }));
+  document.querySelectorAll('[data-conn]').forEach(b => b.addEventListener('click', () => { if (cfg.conn === b.dataset.conn) return; cfg.conn = b.dataset.conn; try { localStorage.setItem('bb-conn', cfg.conn); } catch (e) {} update(); }));
   const setS = v => { v = clamp(Math.round(v), S_MIN, S_MAX); if (v !== cfg.S){ cfg.S = v; update(); } else render(BB.calc); };
   const setP = v => { v = clamp(Math.round(v), P_MIN, P_MAX); if (v !== cfg.P){ cfg.P = v; update(); } else render(BB.calc); };
   $('#s-dec').addEventListener('click', () => setS(cfg.S - 1)); $('#s-inc').addEventListener('click', () => setS(cfg.S + 1));
@@ -758,11 +768,18 @@ window.BB = window.BB || {};
   BB.toast = toast;
   BB.simApi = {
     set(key, val){
+      const k = BB.calc.conn;
       if (key === 'load' && !val && SIM.load && SIM.iLoad > 2){
-        toast(`Arc! Pulling the ${BB.calc.conn.name} apart at ${f1(SIM.iLoad)} A draws an arc that pits the contacts. Turn the main switch OFF first.`);
+        toast(k.hotPlug
+          ? `Arc at ${f1(SIM.iLoad)} A! The ${k.name} is rated to break up to ${k.hotPlug} A under load, but only a few hundred times, and every arc wears the contacts. Turn the main switch OFF first.`
+          : `Arc! Pulling the ${k.name} apart at ${f1(SIM.iLoad)} A draws an arc that pits the contacts. Turn the main switch OFF first.`);
         if (BB.onArc) BB.onArc(SIM.iLoad);
       }
-      if (key === 'sw' && val && SIM.load) toast(`Switch ON. With the ${BB.calc.conn.name} plugged in first, its anti-spark resistor has already pre-charged the controller.`);
+      if (key === 'sw' && val && !SIM.sw && SIM.load){
+        if (k.antiSpark) toast(`Switch ON. With the ${k.name} plugged in first, its anti-spark resistor has already pre-charged the controller.`);
+        else if (SIM.dsgOn) toast(`Inrush spark: the ${k.name} has no pre-charge, so closing the switch fills the controller's capacitors in one hit. A pre-charge resistor or button across the switch saves the contacts.`);
+      }
+      if (key === 'load' && val && !SIM.load && SIM.sw && SIM.dsgOn && !k.antiSpark) toast(`Spark on contact: the ${k.name} has no pre-charge, so plugging in with the switch ON hits the controller's capacitors at full voltage. Switch OFF first, or add a pre-charge resistor.`);
       SIM[key] = val; step(0); renderDock();
     }
   };
@@ -1413,9 +1430,10 @@ function drawBmsPlate(){
 }
 // Output connector: battery half (connA, fixed, contacts face down at y 56) and controller half (xtB, slides down to unplug).
 // Negative contact at x 37, positive at x 51 for both types.
-let connType = null;
+let connType = null, connHH = 17, connTravel = 22;   // half-height of each connector half, and how far the controller half pulls away
 function buildConn(){
-  const c = BB.calc.conn; if (connType === c.id) return; connType = c.id;
+  const c = BB.calc.conn; if (connType === c.id) return false; connType = c.id;
+  connHH = c.id === 'sb175' ? 20 : 17; connTravel = c.id === 'sb175' ? 16 : 22;
   clearGroup(connA); clearGroup(xtB);
   const red = () => plastic(0xc8312b), blk = () => plastic(0x1d2024), gold = () => mat(0xd9ab45, {metalness:1, roughness:0.22, roughnessMap:brushed});
   if (c.id === 'as150'){
@@ -1427,6 +1445,16 @@ function buildConn(){
       cyl('y', 3.5, 4, gold(), x, 15, 330, xtB, 16);
     }
     box(30, 4, 6, mat(0x2a2f33, {roughness:0.6}), 44, 80, 330, connA);
+  } else if (c.id === 'sb175'){
+    // Anderson SB175: one grey genderless housing per side with flat silver-plated contacts
+    const grey = () => plastic(0x8d949a, {roughness:0.55}), dark = () => plastic(0x5f666c, {roughness:0.6}), silver = () => mat(0xdfe3e6, {metalness:1, roughness:0.25, roughnessMap:brushed});
+    for (const [grp, yc, sgn] of [[connA, 76, 1], [xtB, 0, -1]]){
+      rbox(40, 40, 22, 3, grey(), 44, yc, 330, grp);                                        // body
+      rbox(5, 40.6, 23.2, 1, dark(), 44, yc, 330, grp);                                     // rib between the two poles
+      rbox(41.2, 7, 23.2, 1.5, dark(), 44, yc + sgn*12.5, 330, grp);                        // collar at the cable end
+      for (const x of [37, 51]) cyl('y', 6.6, 5, dark(), x, yc + sgn*21.5, 330, grp, 24);   // cable entry barrels
+    }
+    for (const x of [37, 51]) box(7, 5, 2.4, silver(), x, 22, 330, xtB);                    // contact blades, visible when unplugged
   } else {
     rbox(14.6, 34, 15, 2.5, blk(), 37, 73, 330, connA); rbox(14.6, 34, 15, 2.5, red(), 51, 73, 330, connA);
     box(29.6, 3, 16, mat(0x3a3f44, {roughness:0.6}), 44, 59, 330, connA);
@@ -1434,6 +1462,7 @@ function buildConn(){
     for (const x of [37, 51]) cyl('y', 4, 3, gold(), x, 17.5, 330, xtB, 16);
   }
   connLabel.element.textContent = `${c.name} output`;
+  return true;
 }
 { const g = gCharge;
   const cp = new THREE.Group(); const dk = mat(0x15191c, {roughness:0.5});
@@ -1451,7 +1480,8 @@ function buildConn(){
 
 /* ---------------- load (controller + motor) and charger, outside the box ---------------- */
 let mate = BB.sim && !BB.sim.load ? 0 : 1, plugT = BB.sim && BB.sim.charger ? 1 : 0;
-const xtBy = () => 17 + 22*mate;   // centre of the controller half: 39 when mated (top at 56), 17 when pulled apart
+const xtBy = () => 56 - connHH - connTravel*(1 - mate);   // centre of the controller half; its top meets the battery half at y = 56 when mated
+const connTopY = () => 56 + 2*connHH + 1;                 // where the pigtails enter the battery-side half
 const PLUG_MATED = V(-92, 108, 311);
 function plugPos(){ const rest = V(-180 - (G ? G.OX : 0), -5, 430); const p = rest.lerp(PLUG_MATED, plugT); p.y += Math.sin(Math.PI*plugT)*70; return p; }
 { const g = gLoadMov;
@@ -1556,10 +1586,10 @@ const mainWire = (id, color, pts, info, pack) => addWire({id, kind:'main', color
 mainWire('pneg', NEG, () => [V(-104,36,236), V(-104,48,236), V(-104,48,258), V(30,48,258), V(30,116,258), V(30,116,276)], () => runInfo('pneg'));
 mainWire('fuse-sw', POS, () => [V(66,23,236), V(66,58,236), V(78,58,236), V(78,58,244)], () => runInfo('fuse-sw'));
 mainWire('sw-out', POS, () => [V(106,58,244), V(106,58,238), V(106,116,238), V(58,116,238), V(58,116,276)], () => runInfo('sw-out'));
-mainWire('pig-pos', POS, () => [V(58,116,280), V(58,116,316), V(51,106,330), V(51,91,330)], () => runInfo('pig-pos'));
-mainWire('pig-neg', NEG, () => [V(30,116,280), V(30,116,316), V(37,106,330), V(37,91,330)], () => runInfo('pig-neg'));
-mainWire('ctrl-pos', POS, () => [V(51,xtBy()-17,330), V(51,-8,330), V(51,-8,340), V(215+G.OX,-8,340)], () => runInfo('ctrl'));
-mainWire('ctrl-neg', NEG, () => [V(37,xtBy()-17,330), V(37,-8,330), V(37,-8,320), V(215+G.OX,-8,320)], () => runInfo('ctrl'));
+mainWire('pig-pos', POS, () => [V(58,116,280), V(58,116,316), V(51,connTopY()+15,330), V(51,connTopY(),330)], () => runInfo('pig-pos'));
+mainWire('pig-neg', NEG, () => [V(30,116,280), V(30,116,316), V(37,connTopY()+15,330), V(37,connTopY(),330)], () => runInfo('pig-neg'));
+mainWire('ctrl-pos', POS, () => [V(51,xtBy()-connHH,330), V(51,-8,330), V(51,-8,340), V(215+G.OX,-8,340)], () => runInfo('ctrl'));
+mainWire('ctrl-neg', NEG, () => [V(37,xtBy()-connHH,330), V(37,-8,330), V(37,-8,320), V(215+G.OX,-8,320)], () => runInfo('ctrl'));
 addWire({id:'chg-pos', kind:'charge', color:0xd0463c, radius:chgR, bend:7, parent:gCharge,
   pts: () => [V(-97,108,262), V(-97,108,256), V(-97,134,256), V(-22,134,256), V(78,134,256), V(78,134,248), V(78,64,248)], info: () => runInfo('chg-pos')});
 addWire({id:'chg-neg', kind:'charge', color:NEG, radius:chgR, bend:7, parent:gCharge,
@@ -1615,7 +1645,7 @@ function tabInfo(n){
 function busInfo(){ const c = BB.calc; return {kicker:'Series link', title:'U-turn copper bus', rows:[['Joins', `G${G.a} + (column A) → G${G.a+1} − (column B)`],['Side', G.busSide],['Current', `≈ ${f0(c.iCut)} A total, ${f0(c.uturnA)} A per row`],['Section', `≥ ${c.busMM2} mm² copper (≈ 4 A/mm²)`]], note:'Weld or solder the copper over the nickel row strips so the current crosses the divider in copper, not thin nickel.'}; }
 function bmsInfo(){ const c = BB.calc; return {kicker:'Protection', title:`${c.S}S smart BMS`, rows:[['Rating', `≥ ${c.bms} A continuous, common port`],['B−','Pack negative (G1 −)'],['P−','Output and charger negative'],['Balance plug', `${c.S+1} pins, B0 → B${c.S}`],['Sensors','2 × NTC + display / Bluetooth']], note:'Set cell under-voltage to ' + c.cut.toFixed(2) + ' V and over-voltage to 4.20 V. If the BMS has a separate C− pad, the charger negative goes there instead of P−.'}; }
 function fuseInfo(){ const c = BB.calc; return {kicker:'Protection', title:'Class T main fuse', rows:[['Rating', `${c.fuse} A`],['Voltage','125–160 V DC, 20 kA interrupt'],['Protects', `${c.cable.awg} main cable`],['Placement','First thing after the B+ tab']], note:`Lithium cells can deliver thousands of amps into a short. Many automotive fuses (ANL, MIDI, MEGA) are only 32 V or 58 V DC rated, below this pack's ${f1(c.vFull)} V.`}; }
-function switchInfo(){ const c = BB.calc, S = BB.sim; return {kicker:'Isolation', title:'Battery disconnect switch', live:true, rows:[['Rating', `≥ ${c.vRate} V DC, ≥ ${c.fuse} A`],['Position','After the fuse, before the output'],['Now', S.sw ? 'ON' : 'OFF']], note:`The charge port joins on the fuse side of the switch, so charging works with the switch OFF. Close the switch only after the ${BB.calc.conn.name} has pre-charged the controller.`, acts:[[S.sw ? 'Turn OFF' : 'Turn ON', () => BB.simApi.set('sw', !BB.sim.sw)]]}; }
+function switchInfo(){ const c = BB.calc, S = BB.sim; return {kicker:'Isolation', title:'Battery disconnect switch', live:true, rows:[['Rating', `≥ ${c.vRate} V DC, ≥ ${c.fuse} A`],['Position','After the fuse, before the output'],['Now', S.sw ? 'ON' : 'OFF']], note:`The charge port joins on the fuse side of the switch, so charging works with the switch OFF. ${BB.calc.conn.antiSpark ? `Close the switch only after the ${BB.calc.conn.name} has pre-charged the controller.` : `The ${BB.calc.conn.name} has no pre-charge, so use a pre-charge resistor or button before closing the switch.`}`, acts:[[S.sw ? 'Turn OFF' : 'Turn ON', () => BB.simApi.set('sw', !BB.sim.sw)]]}; }
 function chargerInfo(){ const S = BB.sim, C = BB.calc;
   const mode = !S.charger ? 'Unplugged' : S.chgPhase==='CC' ? 'Constant current' : S.chgPhase==='CV' ? 'Constant voltage (tapering)' : S.chgPhase==='Full' ? 'Full, standing by' : S.chgPhase==='Blocked' ? 'Blocked by the BMS' : 'Waiting';
   return {kicker:'Charging', title:`${C.S}S Li-ion charger`, live:true, rows:[['Profile', `${f1(C.vFull)} V CC/CV · ${f0(C.chg)} A`],['Mode', mode],['Output now', `${f1(S.iChg)} A`],['Pack', `${f1(S.vTerm)} V · ${Math.round(S.soc*100)}%`]],
@@ -1632,9 +1662,10 @@ function motorInfo(){ const S = BB.sim, C = BB.calc;
     note:'Spins only when the output plug is in, the main switch is ON and the BMS allows discharge. The throttle slider in the Power panel sets the speed.'};
 }
 const phaseInfo = () => ({kicker:'Load', title:'Motor phase wires U / V / W', rows:[['From','Motor controller'],['Gauge', `${BB.calc.cable.awg} or heavier`]], note:'Phase current can exceed battery current at low speed and high torque. Swap any two phases to reverse the motor.'});
-function xtInfo(){ const c = BB.calc, S = BB.sim, k = c.conn; return {kicker:'Output', title:`${k.name} anti-spark connector`, live:true,
-  rows:[['Type', k.long],['Poles', k.poles],['Now', S.load ? 'Plugged in' : 'Unplugged'],['Current now', `${f1(S.iLoad)} A`],['Rating', `≈${k.cont} A continuous · ${k.burst} A burst · ${k.volt} V DC`],['Verdict', c.xt.text]],
-  note: c.xt.note + ' The anti-spark half has a resistor on a short leading contact that pre-charges the controller capacitors before the main bullet touches, so push it in slowly and fully. ' + k.keyNote,
+function xtInfo(){ const c = BB.calc, S = BB.sim, k = c.conn; return {kicker:'Output', title:`${k.name} ${k.antiSpark ? 'anti-spark connector' : 'connector'}`, live:true,
+  rows:[['Type', k.long],['Poles', k.poles],['Now', S.load ? 'Plugged in' : 'Unplugged'],['Current now', `${f1(S.iLoad)} A`],['Rating', k.ratingText],
+    ...(k.hotPlug ? [['Unplugging under load', `rated to ${k.hotPlug} A, limited cycles`]] : []),['Verdict', c.xt.text]],
+  note: c.xt.note + (k.antiSpark ? ' The anti-spark half has a resistor on a short leading contact that pre-charges the controller capacitors before the main bullet touches, so push it in slowly and fully.' : '') + ' ' + k.keyNote,
   acts:[[S.load ? `Unplug ${k.name}` : `Plug in ${k.name}`, () => BB.simApi.set('load', !BB.sim.load)]]}; }
 const RUN_TEXT = {
   bneg:['Pack negative','B− tab → BMS B−','main'], pneg:['Output negative','BMS P− → gland','main'], bpos:['Pack positive','B+ tab → Class T fuse','main'],
@@ -1691,7 +1722,7 @@ function streamPts(id){
       V(G.xP,yS,G.gc[G.S].z), V(G.xP,yS,F), V(G.xP,14+oS,F), ...W('bpos'), V(66,15,182), V(66,15,236), ...W('fuse-sw')];
   }
   if (id === 'load') return [V(78,58,244), V(78,58,258), V(106,58,258), V(106,58,244), ...W('sw-out'), ...W('pig-pos'), ...W('ctrl-pos'),
-    V(240+G.OX,-8,340), V(240+G.OX,-8,320), ...W('ctrl-neg').reverse(), V(37,91,330), ...W('pig-neg').reverse(), ...W('pneg').reverse()];
+    V(240+G.OX,-8,340), V(240+G.OX,-8,320), ...W('ctrl-neg').reverse(), V(37,connTopY(),330), ...W('pig-neg').reverse(), ...W('pneg').reverse()];
   const cable = W('chg-cable');
   if (id === 'chgIn') return [V(-262-G.OX,10,380), ...cable.slice().reverse().map(p => p.add(OFF_IN)), V(-97,108,300), ...W('chg-pos'), V(78,58,244)];
   return [V(-104,36,236), ...W('chg-neg').reverse(), V(-87,108,300), ...cable.map(p => p.add(OFF_RET)), V(-262-G.OX,10,380)];
@@ -1763,7 +1794,7 @@ function stepSim(dt){
   }
   stepStreams(dt);
   stepArc(dt);
-  updateMotorSound();
+  updateMotorSound(); updateAmbience(); soundCues(S, ctrlOn);
 }
 
 /* ---------------- output-plug arc + sparks (unplugging under load) ---------------- */
@@ -1799,14 +1830,14 @@ function spawnSpark(x, y, z, k){
   const th = Math.random()*Math.PI*2, sp = (250 + Math.random()*1100)*(0.7 + 0.3*k);
   Object.assign(s, {x, y, z, vx:Math.cos(th)*sp, vz:Math.sin(th)*sp*0.8 + 120, vy:-250 + Math.random()*950, life:0, max:0.25 + Math.random()*0.5});
 }
-function startArc(amps){
+function startArc(amps, shortDur){   // shortDur: a brief contact flash (inrush) instead of a drawn-out arc
   const k = Math.min(1.6, Math.max(0.5, amps/30));
   const maxGap = 6 + 7*k;   // the arc stretches until the gap is too wide to sustain it
-  arc = {t:0, k, maxGap, emit:0, dur:Math.min(0.28 + 0.22*k, reduceMotion ? 0.3 : 0.6*maxGap/22 + 0.04)};
-  for (let i=0;i<Math.round(18*k);i++) spawnSpark(Math.random() < 0.5 ? 37 : 51, 55, 330, k);
+  arc = {t:0, k, maxGap, emit:0, dur:shortDur || Math.min(0.28 + 0.22*k, reduceMotion ? 0.3 : 0.6*maxGap/connTravel + 0.04)};
+  for (let i=0;i<Math.round((shortDur ? 8 : 18)*k);i++) spawnSpark(Math.random() < 0.5 ? 37 : 51, 55, 330, k);
   sparkSound(k, arc.dur);
 }
-BB.onArc = startArc;
+BB.onArc = amps => startArc(amps);
 function jaggedTube(x, top, bot, r, seed){
   const n = 8, pts = [];
   const bow = (Math.random() < 0.5 ? -1 : 1)*(1 + (top-bot)*0.35);
@@ -1834,7 +1865,7 @@ function stepArc(dt){
   if (touched || arc){ spkGeo.attributes.position.needsUpdate = true; spkGeo.attributes.color.needsUpdate = true; }
   if (!arc){ arcGroup.visible = false; arcLight.intensity = 0; return; }
   arc.t += dt;
-  const top = 56, bot = xtB.position.y + 17, gap = Math.max(0, top - bot);
+  const top = 56, bot = xtB.position.y + connHH, gap = Math.max(0, top - bot);
   const burning = arc.t < arc.dur && (gap < arc.maxGap || arc.t < 0.15);
   if (!burning){ arcGroup.visible = false; arcLight.intensity = 0; if (arc.t > arc.dur + 0.3) arc = null; return; }
   arcGroup.visible = true;
@@ -1867,10 +1898,12 @@ function ensureAudio(){
     }
     if (actx.state === 'suspended') actx.resume().catch(() => {});
     if (!motorSnd) startMotorSound();
+    if (!fanSnd) startAmbience();
   } catch (e) { return null; }
   return actx;
 }
-['pointerdown','keydown'].forEach(ev => window.addEventListener(ev, () => ensureAudio(), {capture:true}));
+let audioUnlocked = false;   // browsers only allow sound after the first click or key press
+['pointerdown','keydown'].forEach(ev => window.addEventListener(ev, () => { audioUnlocked = true; ensureAudio(); }, {capture:true}));
 function startMotorSound(){
   const ctx = actx;
   const out = ctx.createGain(); out.gain.value = 0;
@@ -1921,6 +1954,89 @@ function sparkSound(k, arcDur){
     cg.gain.setValueAtTime(a, t); cg.gain.exponentialRampToValueAtTime(0.0008, t + 0.004 + Math.random()*0.012);
   }
   s2.connect(hp); hp.connect(cg); cg.connect(master); s2.start(t0, Math.random()); s2.stop(end + 0.05);
+}
+
+/* ---------------- sound effects: switch, plugs, charger, BMS, controller, water (all synthesised) ---------------- */
+function tone(ctx, t0, f0, f1, dur, vol, type){
+  const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type || 'sine';
+  o.frequency.setValueAtTime(f0, t0); if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + 0.03);
+}
+function burst(ctx, t0, dur, vol, type, freq, q){
+  const s = ctx.createBufferSource(); s.buffer = noiseBuf;
+  const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q || 0.8;
+  const g = ctx.createGain(); g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  s.connect(f); f.connect(g); g.connect(master); s.start(t0, Math.random()*1.5); s.stop(t0 + dur + 0.03);
+}
+const SFX = {
+  switchOn(c, t){ burst(c, t, 0.035, 0.5, 'highpass', 1800); tone(c, t, 150, 70, 0.09, 0.4, 'triangle'); burst(c, t + 0.045, 0.03, 0.3, 'bandpass', 900, 1.2); },   // heavy rotary switch: clack, thunk
+  switchOff(c, t){ burst(c, t, 0.03, 0.42, 'highpass', 2200); tone(c, t, 110, 60, 0.07, 0.32, 'triangle'); },
+  plug(c, t){ burst(c, t, 0.02, 0.35, 'bandpass', 2600, 1.5); tone(c, t + 0.06, 190, 85, 0.1, 0.45, 'triangle'); burst(c, t + 0.06, 0.06, 0.4, 'lowpass', 700); },    // contacts slide, housing seats
+  unplug(c, t){ tone(c, t, 240, 110, 0.06, 0.3, 'triangle'); burst(c, t, 0.03, 0.25, 'bandpass', 1500, 1.2); },
+  chargerPlug(c, t){ burst(c, t, 0.018, 0.3, 'bandpass', 3200, 2); tone(c, t + 0.03, 320, 170, 0.06, 0.28, 'triangle'); tone(c, t + 0.35, 1175, 1175, 0.09, 0.1, 'sine'); },   // click, then the charger's start beep
+  relay(c, t){ burst(c, t, 0.016, 0.5, 'highpass', 2600); tone(c, t, 900, 280, 0.035, 0.14, 'square'); },                                                           // BMS cutting in or out
+  alarm(c, t){ for (let i=0;i<3;i++) tone(c, t + 0.08 + i*0.22, 2050, 2050, 0.13, 0.12, 'square'); },                                                               // three warning beeps
+  recover(c, t){ tone(c, t + 0.05, 1320, 1760, 0.12, 0.09, 'sine'); },
+  full(c, t){ tone(c, t, 880, 880, 0.14, 0.12, 'sine'); tone(c, t + 0.18, 1320, 1320, 0.2, 0.12, 'sine'); },                                                        // charge complete
+  arm(c, t){ [523, 659, 784].forEach((f, i) => tone(c, t + 0.15 + i*0.13, f, f, 0.11, 0.07, 'square')); },                                                          // controller power-up tones
+  disarm(c, t){ tone(c, t, 500, 250, 0.16, 0.05, 'square'); },
+  snap(c, t){ tone(c, t, 1600, 90, 0.05, 0.3, 'square'); burst(c, t, 0.07, 0.5, 'highpass', 2400); burst(c, t + 0.03, 0.12, 0.25, 'bandpass', 3500, 0.8); }          // inrush spark inside the switch
+};
+function sfx(name){
+  if (!audioUnlocked) return; const ctx = ensureAudio(); if (!ctx || !noiseBuf) return;
+  try { SFX[name](ctx, ctx.currentTime + 0.01); } catch (e) {}
+}
+// continuous sounds: the charger's fan while it is delivering current, and water lapping in the Boat deck scene
+let fanSnd = null, waterSnd = null;
+function startAmbience(){
+  const ctx = actx;
+  const fo = ctx.createGain(); fo.gain.value = 0; fo.connect(master);
+  const fn = ctx.createBufferSource(); fn.buffer = noiseBuf; fn.loop = true;
+  const fb = ctx.createBiquadFilter(); fb.type = 'bandpass'; fb.frequency.value = 1100; fb.Q.value = 0.5;
+  const fg = ctx.createGain(); fg.gain.value = 0.5; fn.connect(fb); fb.connect(fg); fg.connect(fo);
+  const hum = ctx.createOscillator(); hum.type = 'sine'; hum.frequency.value = 120; const hg = ctx.createGain(); hg.gain.value = 0.25; hum.connect(hg); hg.connect(fo);
+  const whir = ctx.createOscillator(); whir.type = 'triangle'; whir.frequency.value = 410; const wg = ctx.createGain(); wg.gain.value = 0.06; whir.connect(wg); wg.connect(fo);
+  fn.start(0, 0.3); hum.start(); whir.start();
+  fanSnd = {out:fo};
+  const wo = ctx.createGain(); wo.gain.value = 0; wo.connect(master);
+  const wn = ctx.createBufferSource(); wn.buffer = noiseBuf; wn.loop = true;
+  const wl = ctx.createBiquadFilter(); wl.type = 'lowpass'; wl.frequency.value = 650; wl.Q.value = 0.4;
+  const swell = ctx.createGain(); swell.gain.value = 0.55;
+  const l1 = ctx.createOscillator(); l1.frequency.value = 0.19; const l1g = ctx.createGain(); l1g.gain.value = 0.3; l1.connect(l1g); l1g.connect(swell.gain);
+  const l2 = ctx.createOscillator(); l2.frequency.value = 0.31; const l2g = ctx.createGain(); l2g.gain.value = 0.15; l2.connect(l2g); l2g.connect(swell.gain);
+  const l3 = ctx.createOscillator(); l3.frequency.value = 0.13; const l3g = ctx.createGain(); l3g.gain.value = 260; l3.connect(l3g); l3g.connect(wl.frequency);
+  wn.connect(wl); wl.connect(swell); swell.connect(wo);
+  wn.start(0, 1.1); l1.start(); l2.start(); l3.start();
+  waterSnd = {out:wo};
+}
+function updateAmbience(){
+  if (!actx || !fanSnd) return; const S = BB.sim, t = actx.currentTime;
+  const fanOn = soundOn && S.charger && plugT === 1 && S.iChg > 0.05;
+  fanSnd.out.gain.setTargetAtTime(fanOn ? 0.035 + 0.035*Math.min(1, S.iChg/20) : 0, t, 0.4);
+  waterSnd.out.gain.setTargetAtTime(soundOn && SC.id === 'deck' ? 0.07 : 0, t, 0.8);
+}
+// one-shot cues, fired when something changes state
+const was = {};
+function soundCues(S, ctrlOn){
+  const now = {sw:S.sw, load:S.load, charger:S.charger, mated:mate === 1, plugged:plugT === 1, uv:S.uv, hot:S.hotDsg, hotChg:S.hotChg && S.charger, full:S.full && S.charger, ctrlOn};
+  if (was.sw !== undefined){
+    if (now.sw !== was.sw) sfx(now.sw ? 'switchOn' : 'switchOff');
+    if (now.mated && !was.mated) sfx('plug');
+    if (!now.load && was.load && !(arc && arc.t < 0.3)) sfx('unplug');
+    if (now.plugged && !was.plugged) sfx('chargerPlug');
+    if (!now.charger && was.charger) sfx('unplug');
+    if ((now.uv && !was.uv) || (now.hot && !was.hot)){ sfx('relay'); sfx('alarm'); }
+    else if ((!now.uv && was.uv) || (!now.hot && was.hot)){ sfx('relay'); sfx('recover'); }
+    if (now.hotChg && !was.hotChg) sfx('relay');
+    if (now.full && !was.full) sfx('full');
+    if (now.ctrlOn && !was.ctrlOn){
+      sfx('arm');
+      // a connector with no pre-charge lets the controller's capacitors fill in one hit: a spark at whichever contact closed last
+      if (!BB.calc.conn.antiSpark){ if (now.mated && !was.mated) startArc(10, 0.12); else if (now.sw && !was.sw) sfx('snap'); }
+    } else if (!now.ctrlOn && was.ctrlOn && !now.uv && !now.hot) sfx('disarm');
+  }
+  Object.assign(was, now);
 }
 
 /* ---------------- info card, selection ---------------- */
@@ -1980,7 +2096,8 @@ function pickAt(ev){
   return null;
 }
 let downPos = null, hoverQueued = null;
-renderer.domElement.addEventListener('pointerdown', e => { downPos = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerdown', e => { downPos = [e.clientX, e.clientY]; camTween = null; });   // grabbing the model stops a view animation
+renderer.domElement.addEventListener('wheel', () => { camTween = null; }, {passive:true});
 renderer.domElement.addEventListener('pointerup', e => {
   if (!downPos || Math.hypot(e.clientX-downPos[0], e.clientY-downPos[1]) > 5) return;
   const hit = pickAt(e);
@@ -2009,10 +2126,11 @@ let camTween = null;
 function goView(name, instant){
   const d1 = DIRS[name].clone().normalize(), r1 = fitDist();
   document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view===name));
-  if (instant || reduceMotion){ camera.position.copy(TARGET).addScaledVector(d1, r1); controls.target.copy(TARGET); controls.update(); return; }
-  // swing around the model on an arc instead of cutting through it
+  if (instant){ camera.position.copy(TARGET).addScaledVector(d1, r1); controls.target.copy(TARGET); controls.update(); return; }
+  // swing around the model on an arc instead of cutting through it; a longer swing takes longer (about 1.5 s for a small move, 2.6 s for top to bottom)
   const off0 = camera.position.clone().sub(controls.target), r0 = off0.length() || 1, d0 = off0.clone().divideScalar(r0);
-  camTween = {t:0, t0:controls.target.clone(), t1:TARGET.clone(), d0, r0, r1, q:new THREE.Quaternion().setFromUnitVectors(d0, d1)};
+  const swing = Math.min(1, Math.max(0, d0.angleTo(d1)/Math.PI)) || 0;
+  camTween = {t:0, dur:1.4 + 1.2*swing, t0:controls.target.clone(), t1:TARGET.clone(), d0, r0, r1, q:new THREE.Quaternion().setFromUnitVectors(d0, d1)};
 }
 document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => goView(b.dataset.view)));
 
@@ -2103,7 +2221,8 @@ const api = {
   clear(){ resetAll(); showInfo(null); },
   onCalc(c){
     if (!G || c.S !== G.S || c.P !== G.P || c.fmt !== G.fmt){ api.clear(); buildPack(); return; }
-    drawBmsPlate(); drawWrap(); buildConn(); buildAllWires(w => w.kind==='main' || w.kind==='charge');
+    drawBmsPlate(); drawWrap(); const newConn = buildConn(); if (newConn) placeMovers();
+    buildAllWires(w => w.kind==='main' || w.kind==='charge'); if (newConn) rebuildStreams();
     if (currentInfo) showInfo(currentInfo);
   }
 };
@@ -2203,7 +2322,8 @@ function frame(){
   watchPerf(raw);
   if (expQueued !== null){ applyExplode(expQueued); expQueued = null; }
   if (camTween){
-    camTween.t = Math.min(1, camTween.t + dt/0.8); const e = 1 - Math.pow(1 - camTween.t, 3);
+    camTween.t = Math.min(1, camTween.t + dt/camTween.dur);
+    const u = camTween.t, e = u < 0.5 ? 4*u*u*u : 1 - Math.pow(-2*u + 2, 3)/2;   // ease in, then out: starts gently, glides, settles
     const tg = camTween.t0.clone().lerp(camTween.t1, e), q = new THREE.Quaternion().slerp(camTween.q, e);
     camera.position.copy(tg).addScaledVector(camTween.d0.clone().applyQuaternion(q), camTween.r0 + (camTween.r1 - camTween.r0)*e);
     controls.target.copy(tg);
