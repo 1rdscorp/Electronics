@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Electronics Bench</title>
-<meta name="description" content="Interactive electronics labs: op-amps, transistors and more.">
+<title>Science Bench</title>
+<meta name="description" content="Interactive science labs: circuits, batteries, atoms and more.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -76,12 +76,12 @@ a{color:inherit}
 <body>
 
 <header class="bar">
-  <a class="logo" href="#/" aria-label="Electronics Bench home">
+  <a class="logo" href="#/" aria-label="Science Bench home">
     <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
       <rect x="1" y="1" width="24" height="24" rx="6" fill="#18242f" stroke="#5fd68f" stroke-width="1.5"/>
       <path d="M4 13h4l2-5 3 10 3-10 2 5h4" fill="none" stroke="#5fd68f" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
     </svg>
-    <span>Electronics Bench</span>
+    <span>Science Bench</span>
   </a>
   <nav class="nav" id="nav" aria-label="Labs"></nav>
   <a class="pop" id="pop" href="#" target="_blank" rel="noopener" hidden>Open in new tab ↗</a>
@@ -90,8 +90,8 @@ a{color:inherit}
 <main class="stage" id="stage">
   <section class="home" id="home" aria-labelledby="home-title">
     <div class="hero">
-      <h1 id="home-title">Electronics Bench</h1>
-      <p>Interactive labs for learning circuits. Pick a bench, turn the knobs and watch what the circuit does.</p>
+      <h1 id="home-title">Science Bench</h1>
+      <p>Hands-on labs for circuits, batteries, atoms and more. Pick a bench, turn the knobs and watch what happens.</p>
     </div>
     <div class="grid" id="grid"></div>
     <p class="foot">Adding a lab: put its HTML file in <code>labs/</code> and list it in <code>labs/labs.js</code>.</p>
@@ -102,7 +102,7 @@ a{color:inherit}
 <script>
 (() => {
   "use strict";
-  const SITE = "Electronics Bench";
+  const SITE = "Science Bench";
   const labs = (window.LABS || []).filter(l => l && l.id && l.file);
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

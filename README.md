@@ -1,6 +1,6 @@
-# Electronics Bench
+# Science Bench
 
-Interactive electronics labs in one static website. Open `index.html` in a browser. No build step or server is needed.
+Interactive science labs in one static website. Open `index.html` in a browser. No build step or server is needed.
 
 ## Structure
 
